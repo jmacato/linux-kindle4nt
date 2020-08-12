@@ -32,25 +32,25 @@
 struct mc13892_pwrb {
 	struct input_dev *pwr;
 	struct mc13xxx *mc13892;
-#define MC13892_PWRB_B1_POL_INVERT	(1 << 0)
-#define MC13892_PWRB_B2_POL_INVERT	(1 << 1)
-#define MC13892_PWRB_B3_POL_INVERT	(1 << 2)
+#define MC13892_PWRB_B1_POL_INVERT (1 << 0)
+#define MC13892_PWRB_B2_POL_INVERT (1 << 1)
+#define MC13892_PWRB_B3_POL_INVERT (1 << 2)
 	int flags;
 	unsigned short keymap[3];
 };
 
-#define MC13892_REG_INTERRUPT_SENSE_1		5
-#define MC13892_IRQSENSE1_ONOFD1S		(1 << 3)
-#define MC13892_IRQSENSE1_ONOFD2S		(1 << 4)
-#define MC13892_IRQSENSE1_ONOFD3S		(1 << 5)
+#define MC13892_REG_INTERRUPT_SENSE_1 5
+#define MC13892_IRQSENSE1_ONOFD1S (1 << 3)
+#define MC13892_IRQSENSE1_ONOFD2S (1 << 4)
+#define MC13892_IRQSENSE1_ONOFD3S (1 << 5)
 
-#define MC13892_REG_POWER_CONTROL_2		15
-#define MC13892_POWER_CONTROL_2_ON1BDBNC	4
-#define MC13892_POWER_CONTROL_2_ON2BDBNC	6
-#define MC13892_POWER_CONTROL_2_ON3BDBNC	8
-#define MC13892_POWER_CONTROL_2_ON1BRSTEN	(1 << 1)
-#define MC13892_POWER_CONTROL_2_ON2BRSTEN	(1 << 2)
-#define MC13892_POWER_CONTROL_2_ON3BRSTEN	(1 << 3)
+#define MC13892_REG_POWER_CONTROL_2 15
+#define MC13892_POWER_CONTROL_2_ON1BDBNC 4
+#define MC13892_POWER_CONTROL_2_ON2BDBNC 6
+#define MC13892_POWER_CONTROL_2_ON3BDBNC 8
+#define MC13892_POWER_CONTROL_2_ON1BRSTEN (1 << 1)
+#define MC13892_POWER_CONTROL_2_ON2BRSTEN (1 << 2)
+#define MC13892_POWER_CONTROL_2_ON3BRSTEN (1 << 3)
 
 #define MC13892_IRQ_ONOFD3 26
 #define MC13892_IRQ_ONOFD1 27
@@ -60,32 +60,14 @@ static irqreturn_t button_irq(int irq, void *_priv)
 {
 	struct mc13892_pwrb *priv = _priv;
 	int val;
+	int pwr1;
 
 	mc13xxx_irq_ack(priv->mc13892, irq);
 	mc13xxx_reg_read(priv->mc13892, MC13892_REG_INTERRUPT_SENSE_1, &val);
 
-	switch (irq) {
-	case MC13892_IRQ_ONOFD1:
-		val = val & MC13892_IRQSENSE1_ONOFD1S ? 1 : 0;
-		if (priv->flags & MC13892_PWRB_B1_POL_INVERT)
-			val ^= 1;
-		input_report_key(priv->pwr, priv->keymap[0], val);
-		break;
+	pwr1 = val & MC13892_IRQSENSE1_ONOFD1S ? 1 : 0;
 
-	case MC13892_IRQ_ONOFD2:
-		val = val & MC13892_IRQSENSE1_ONOFD2S ? 1 : 0;
-		if (priv->flags & MC13892_PWRB_B2_POL_INVERT)
-			val ^= 1;
-		input_report_key(priv->pwr, priv->keymap[1], val);
-		break;
-
-	case MC13892_IRQ_ONOFD3:
-		val = val & MC13892_IRQSENSE1_ONOFD3S ? 1 : 0;
-		if (priv->flags & MC13892_PWRB_B3_POL_INVERT)
-			val ^= 1;
-		input_report_key(priv->pwr, priv->keymap[2], val);
-		break;
-	}
+	input_report_key(priv->pwr, priv->keymap[0], pwr1);
 
 	input_sync(priv->pwr);
 
@@ -94,18 +76,22 @@ static irqreturn_t button_irq(int irq, void *_priv)
 
 static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 {
-	const struct mc13xxx_buttons_platform_data *pdata;
+	// const struct mc13xxx_buttons_platform_data *pdata;
 	struct mc13xxx *mc13892 = dev_get_drvdata(pdev->dev.parent);
 	struct input_dev *pwr;
 	struct mc13892_pwrb *priv;
 	int err = 0;
 	int reg = 0;
+	int fail = 0;
+	int key = 0;
 
-	pdata = dev_get_platdata(&pdev->dev);
-	if (!pdata) {
-		dev_err(&pdev->dev, "missing platform data\n");
-		return -ENODEV;
-	}
+	key = KEY_POWER;
+
+	// pdata = dev_get_platdata(&pdev->dev);
+	// if (!pdata) {
+	// 	dev_err(&pdev->dev, "missing platform data\n");
+	// 	return -ENODEV;
+	// }
 
 	pwr = input_allocate_device();
 	if (!pwr) {
@@ -120,71 +106,31 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 		goto free_input_dev;
 	}
 
-	reg |= (pdata->b1on_flags & 0x3) << MC13892_POWER_CONTROL_2_ON1BDBNC;
-	reg |= (pdata->b2on_flags & 0x3) << MC13892_POWER_CONTROL_2_ON2BDBNC;
-	reg |= (pdata->b3on_flags & 0x3) << MC13892_POWER_CONTROL_2_ON3BDBNC;
+	reg |= MC13892_POWER_CONTROL_2_ON1BDBNC;
+	reg |= MC13892_POWER_CONTROL_2_ON2BDBNC;
+	reg |= MC13892_POWER_CONTROL_2_ON3BDBNC;
 
 	priv->pwr = pwr;
 	priv->mc13892 = mc13892;
 
 	mc13xxx_lock(mc13892);
 
-	if (pdata->b1on_flags & MC13892_BUTTON_ENABLE) {
-		priv->keymap[0] = pdata->b1on_key;
-		if (pdata->b1on_key != KEY_RESERVED)
-			__set_bit(pdata->b1on_key, pwr->keybit);
+	priv->keymap[0] = key;
 
-		if (pdata->b1on_flags & MC13892_BUTTON_POL_INVERT)
-			priv->flags |= MC13892_PWRB_B1_POL_INVERT;
+	if (key != KEY_RESERVED)
+		__set_bit(key, pwr->keybit);
 
-		if (pdata->b1on_flags & MC13892_BUTTON_RESET_EN)
-			reg |= MC13892_POWER_CONTROL_2_ON1BRSTEN;
+	err = mc13xxx_irq_request(mc13892, MC13892_IRQ_ONOFD1, button_irq,
+				  "b1on", priv);
 
-		err = mc13xxx_irq_request(mc13892, MC13892_IRQ_ONOFD1,
-					  button_irq, "b1on", priv);
-		if (err) {
-			dev_dbg(&pdev->dev, "Can't request irq\n");
-			goto free_priv;
-		}
+	if (err) {
+		dev_dbg(&pdev->dev, "Can't request irq\n");
+		fail = 1;
+		goto free_priv;
 	}
 
-	if (pdata->b2on_flags & MC13892_BUTTON_ENABLE) {
-		priv->keymap[1] = pdata->b2on_key;
-		if (pdata->b2on_key != KEY_RESERVED)
-			__set_bit(pdata->b2on_key, pwr->keybit);
-
-		if (pdata->b2on_flags & MC13892_BUTTON_POL_INVERT)
-			priv->flags |= MC13892_PWRB_B2_POL_INVERT;
-
-		if (pdata->b2on_flags & MC13892_BUTTON_RESET_EN)
-			reg |= MC13892_POWER_CONTROL_2_ON2BRSTEN;
-
-		err = mc13xxx_irq_request(mc13892, MC13892_IRQ_ONOFD2,
-					  button_irq, "b2on", priv);
-		if (err) {
-			dev_dbg(&pdev->dev, "Can't request irq\n");
-			goto free_irq_b1;
-		}
-	}
-
-	if (pdata->b3on_flags & MC13892_BUTTON_ENABLE) {
-		priv->keymap[2] = pdata->b3on_key;
-		if (pdata->b3on_key != KEY_RESERVED)
-			__set_bit(pdata->b3on_key, pwr->keybit);
-
-		if (pdata->b3on_flags & MC13892_BUTTON_POL_INVERT)
-			priv->flags |= MC13892_PWRB_B3_POL_INVERT;
-
-		if (pdata->b3on_flags & MC13892_BUTTON_RESET_EN)
-			reg |= MC13892_POWER_CONTROL_2_ON3BRSTEN;
-
-		err = mc13xxx_irq_request(mc13892, MC13892_IRQ_ONOFD3,
-					  button_irq, "b3on", priv);
-		if (err) {
-			dev_dbg(&pdev->dev, "Can't request irq: %d\n", err);
-			goto free_irq_b2;
-		}
-	}
+	// Wakes the device up since it's a power button...
+	device_init_wakeup(&pdev->dev, 1);
 
 	mc13xxx_reg_rmw(mc13892, MC13892_REG_POWER_CONTROL_2, 0x3FE, reg);
 
@@ -202,29 +148,24 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	err = input_register_device(pwr);
 	if (err) {
 		dev_dbg(&pdev->dev, "Can't register power button: %d\n", err);
-		goto free_irq;
+		fail = 1;
+		goto free_priv;
 	}
 
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
 
-free_irq:
-	mc13xxx_lock(mc13892);
-
-	if (pdata->b3on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD3, priv);
-
-free_irq_b2:
-	if (pdata->b2on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD2, priv);
-
-free_irq_b1:
-	if (pdata->b1on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD1, priv);
-
 free_priv:
-	mc13xxx_unlock(mc13892);
+
+	if (fail) {
+		mc13xxx_lock(mc13892);
+		// mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD3, priv);
+		// mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD2, priv);
+		mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD1, priv);
+		mc13xxx_unlock(mc13892);
+	}
+
 	kfree(priv);
 
 free_input_dev:
@@ -242,12 +183,9 @@ static int mc13892_pwrbutton_remove(struct platform_device *pdev)
 
 	mc13xxx_lock(priv->mc13892);
 
-	if (pdata->b3on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD3, priv);
-	if (pdata->b2on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD2, priv);
-	if (pdata->b1on_flags & MC13892_BUTTON_ENABLE)
-		mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD1, priv);
+	// mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD3, priv);
+	// mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD2, priv);
+	mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD1, priv);
 
 	mc13xxx_unlock(priv->mc13892);
 
@@ -268,6 +206,6 @@ static struct platform_driver mc13892_pwrbutton_driver = {
 module_platform_driver(mc13892_pwrbutton_driver);
 
 MODULE_ALIAS("platform:mc13892-pwrbutton");
-MODULE_DESCRIPTION("MC13892 Power Button");
+MODULE_DESCRIPTION("MC13892 Power Button - Kindle 4 NT Version");
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Philippe Retornaz, Jumar Macato");
