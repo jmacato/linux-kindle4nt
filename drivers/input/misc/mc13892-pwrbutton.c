@@ -58,16 +58,23 @@ struct mc13892_pwrb {
 
 static irqreturn_t button_irq(int irq, void *_priv)
 {
-	struct mc13892_pwrb *priv = _priv;
+	struct mc13892_pwrb *priv = _priv; 
 	int val;
 	int pwr1;
+
+	printk("button pressing still...");
 
 	mc13xxx_irq_ack(priv->mc13892, irq);
 	mc13xxx_reg_read(priv->mc13892, MC13892_REG_INTERRUPT_SENSE_1, &val);
 
 	pwr1 = val & MC13892_IRQSENSE1_ONOFD1S ? 1 : 0;
 
-	input_report_key(priv->pwr, priv->keymap[0], pwr1);
+	if (pwr1) {
+		input_report_key(priv->pwr, KEY_POWER, 1);
+		pm_wakeup_event(priv->pwr->dev.parent, 0);
+	} else {
+		input_report_key(priv->pwr, KEY_POWER, 0);
+	}
 
 	input_sync(priv->pwr);
 
@@ -84,8 +91,6 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	int reg = 0;
 	int fail = 0;
 	int key = 0;
-
-	key = KEY_POWER;
 
 	// pdata = dev_get_platdata(&pdev->dev);
 	// if (!pdata) {
@@ -107,18 +112,13 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	}
 
 	reg |= MC13892_POWER_CONTROL_2_ON1BDBNC;
-	reg |= MC13892_POWER_CONTROL_2_ON2BDBNC;
-	reg |= MC13892_POWER_CONTROL_2_ON3BDBNC;
+	// reg |= MC13892_POWER_CONTROL_2_ON2BDBNC;
+	// reg |= MC13892_POWER_CONTROL_2_ON3BDBNC;
 
 	priv->pwr = pwr;
 	priv->mc13892 = mc13892;
 
 	mc13xxx_lock(mc13892);
-
-	priv->keymap[0] = key;
-
-	if (key != KEY_RESERVED)
-		__set_bit(key, pwr->keybit);
 
 	err = mc13xxx_irq_request(mc13892, MC13892_IRQ_ONOFD1, button_irq,
 				  "b1on", priv);
@@ -129,9 +129,6 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 		goto free_priv;
 	}
 
-	// Wakes the device up since it's a power button...
-	device_init_wakeup(&pdev->dev, 1);
-
 	mc13xxx_reg_rmw(mc13892, MC13892_REG_POWER_CONTROL_2, 0x3FE, reg);
 
 	mc13xxx_unlock(mc13892);
@@ -140,12 +137,11 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	pwr->phys = "mc13892_pwrbutton/input0";
 	pwr->dev.parent = &pdev->dev;
 
-	pwr->keycode = priv->keymap;
-	pwr->keycodemax = ARRAY_SIZE(priv->keymap);
-	pwr->keycodesize = sizeof(priv->keymap[0]);
-	__set_bit(EV_KEY, pwr->evbit);
+	input_set_capability(pwr, EV_KEY, KEY_POWER);
+	device_init_wakeup(&pdev->dev, true);
 
 	err = input_register_device(pwr);
+
 	if (err) {
 		dev_dbg(&pdev->dev, "Can't register power button: %d\n", err);
 		fail = 1;
