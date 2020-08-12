@@ -408,6 +408,9 @@ static int mc13xxx_probe_flags_dt(struct mc13xxx *mc13xxx)
 	if (of_property_read_bool(np, "fsl,mc13xxx-uses-touch"))
 		mc13xxx->flags |= MC13XXX_USE_TOUCHSCREEN;
 
+	if (of_property_read_bool(np, "fsl,mc13xxx-uses-button"))
+		mc13xxx->flags |= MC13XXX_USE_BUTTON;
+
 	return 0;
 }
 #else
@@ -468,29 +471,37 @@ int mc13xxx_common_init(struct device *dev)
 			&pdata->regulators, sizeof(pdata->regulators));
 		mc13xxx_add_subdevice_pdata(mc13xxx, "%s-led",
 				pdata->leds, sizeof(*pdata->leds));
-		mc13xxx_add_subdevice_pdata(mc13xxx, "%s-pwrbutton",
-				pdata->buttons, sizeof(*pdata->buttons));
+
+		printk("9999999 leds %d", pdata->leds->num_leds);
+		printk("9999999 buttons %d", pdata->buttons->b1on_key);
+
 		if (mc13xxx->flags & MC13XXX_USE_CODEC)
 			mc13xxx_add_subdevice_pdata(mc13xxx, "%s-codec",
 				pdata->codec, sizeof(*pdata->codec));
+
 		if (mc13xxx->flags & MC13XXX_USE_TOUCHSCREEN)
 			mc13xxx_add_subdevice_pdata(mc13xxx, "%s-ts",
 				&pdata->touch, sizeof(pdata->touch));
 	} else {
 		mc13xxx_add_subdevice(mc13xxx, "%s-regulator");
 		mc13xxx_add_subdevice(mc13xxx, "%s-led");
-		mc13xxx_add_subdevice(mc13xxx, "%s-pwrbutton");
+
 		if (mc13xxx->flags & MC13XXX_USE_CODEC)
 			mc13xxx_add_subdevice(mc13xxx, "%s-codec");
 		if (mc13xxx->flags & MC13XXX_USE_TOUCHSCREEN)
 			mc13xxx_add_subdevice(mc13xxx, "%s-ts");
 	}
 
+	printk("setter 3");
+
 	if (mc13xxx->flags & MC13XXX_USE_ADC)
 		mc13xxx_add_subdevice(mc13xxx, "%s-adc");
 
 	if (mc13xxx->flags & MC13XXX_USE_RTC)
 		mc13xxx_add_subdevice(mc13xxx, "%s-rtc");
+	
+	if (mc13xxx->flags & MC13XXX_USE_BUTTON)
+		mc13xxx_add_subdevice(mc13xxx, "%s-pwrbutton");
 
 	return 0;
 }
