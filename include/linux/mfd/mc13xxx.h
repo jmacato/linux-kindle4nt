@@ -185,6 +185,9 @@ struct mc13xxx_leds_platform_data {
 #define MC13783_BUTTON_ENABLE		(1 << 2)
 #define MC13783_BUTTON_POL_INVERT	(1 << 3)
 #define MC13783_BUTTON_RESET_EN		(1 << 4)
+#define MC13892_BUTTON_ENABLE		(1 << 2)
+#define MC13892_BUTTON_POL_INVERT	(1 << 3)
+#define MC13892_BUTTON_RESET_EN		(1 << 4)
 
 struct mc13xxx_buttons_platform_data {
 	int b1on_flags;

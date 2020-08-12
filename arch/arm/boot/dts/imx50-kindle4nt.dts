@@ -75,6 +75,7 @@
 		>;
 	};
 
+
 	fiveway_directional: gpio-keys0 {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -258,6 +259,19 @@
 		interrupt-parent = <&gpio6>;
 		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,mc13xxx-uses-rtc;
+
+
+		pwrbutton {
+			compatible = "mc13892-pwrbutton";
+			b1on_flags = <0x0>;
+			b1on_key = <KEY_A>;
+
+			b2on_flags = <0x0>;
+			b2on_key = <KEY_A>;
+
+			b3on_flags = <0x0>;
+			b3on_key = <KEY_A>;		
+		};
 
 		regulators {
 			sw1_reg: sw1 {
