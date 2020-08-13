@@ -257,7 +257,8 @@
 		spi-cs-high;
 		reg = <0>;
 		interrupt-parent = <&gpio6>;
-		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <8 IRQ_TYPE_LEVEL_HIGH
+					  5 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,mc13xxx-uses-rtc;
 		fsl,mc13xxx-uses-button;
 

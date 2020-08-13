@@ -71,7 +71,6 @@ static irqreturn_t button_irq(int irq, void *_priv)
 
 	if (pwr1) {
 		input_report_key(priv->pwr, KEY_POWER, 1);
-		pm_wakeup_event(priv->pwr->dev.parent, 0);
 	} else {
 		input_report_key(priv->pwr, KEY_POWER, 0);
 	}
@@ -90,7 +89,6 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	int err = 0;
 	int reg = 0;
 	int fail = 0;
-	int key = 0;
 
 	// pdata = dev_get_platdata(&pdev->dev);
 	// if (!pdata) {
@@ -112,8 +110,6 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	}
 
 	reg |= MC13892_POWER_CONTROL_2_ON1BDBNC;
-	// reg |= MC13892_POWER_CONTROL_2_ON2BDBNC;
-	// reg |= MC13892_POWER_CONTROL_2_ON3BDBNC;
 
 	priv->pwr = pwr;
 	priv->mc13892 = mc13892;
@@ -138,7 +134,9 @@ static int mc13892_pwrbutton_probe(struct platform_device *pdev)
 	pwr->dev.parent = &pdev->dev;
 
 	input_set_capability(pwr, EV_KEY, KEY_POWER);
-	device_init_wakeup(&pdev->dev, true);
+	device_init_wakeup(&pdev->dev, 1);
+	
+	enable_irq_wake(MC13892_IRQ_ONOFD1);
 
 	err = input_register_device(pwr);
 
@@ -156,8 +154,6 @@ free_priv:
 
 	if (fail) {
 		mc13xxx_lock(mc13892);
-		// mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD3, priv);
-		// mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD2, priv);
 		mc13xxx_irq_free(mc13892, MC13892_IRQ_ONOFD1, priv);
 		mc13xxx_unlock(mc13892);
 	}
@@ -178,9 +174,7 @@ static int mc13892_pwrbutton_remove(struct platform_device *pdev)
 	pdata = dev_get_platdata(&pdev->dev);
 
 	mc13xxx_lock(priv->mc13892);
-
-	// mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD3, priv);
-	// mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD2, priv);
+ 
 	mc13xxx_irq_free(priv->mc13892, MC13892_IRQ_ONOFD1, priv);
 
 	mc13xxx_unlock(priv->mc13892);
