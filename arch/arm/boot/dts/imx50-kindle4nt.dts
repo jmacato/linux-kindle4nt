@@ -28,7 +28,7 @@
 		device_type = "memory";
 		reg = <0x70000000 0x10000000>;
 	};
-
+ 
 	/* this is a dummy fixed-voltage "regulator", mainly to satisfy
 	* the esdhc implementation requiring vmmc-supply and vqmmc-supply
 	*/
@@ -221,6 +221,21 @@
 				MX50_PAD_OWIRE__GPIO6_26		0xe4
 			>;
 		};
+
+		pinctrl_esdhc2: esdhc2grp {
+			fsl,pins = <
+				MX50_PAD_SD2_CMD__ESDHC2_CMD		0x84
+				MX50_PAD_SD2_CLK__ESDHC2_CLK		0x84
+				MX50_PAD_SD2_D0__ESDHC2_DAT0		0x84
+				MX50_PAD_SD2_D1__ESDHC2_DAT1		0x84
+				MX50_PAD_SD2_D2__ESDHC2_DAT2		0x84
+				MX50_PAD_SD2_D3__ESDHC2_DAT3		0x84
+
+				MX50_PAD_EIM_DA5__GPIO1_5		0xe4 /* wake-on-lan */
+				MX50_PAD_SD3_WP__GPIO5_28		0x84 /* power */
+				MX50_PAD_DISP_RS__GPIO2_17		0xe4 /* ? */
+			>;
+		};
 	};
 };
 
@@ -228,6 +243,18 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
 	status = "okay";
+};
+
+&esdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_esdhc3>;
+	status = "okay";
+	atheros@0 {
+		compatible = "atheros,ath6kl";
+		atheros,board-id = "SD32";
+		reg = <0>;
+		bus-width = <4>;
+	};
 };
 
 &esdhc3 {
@@ -261,18 +288,7 @@
 					  5 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,mc13xxx-uses-rtc;
 		fsl,mc13xxx-uses-button;
-
-		buttons {
-			b1on_flags = <0>;
-			b1on_key = <KEY_A>;
-
-			b2on_flags = <0>;
-			b2on_key = <KEY_A>;
-
-			b3on_flags = <0>;
-			b3on_key = <KEY_A>;		
-		};
-
+ 
 		regulators {
 			sw1_reg: sw1 {
 				regulator-min-microvolt = <600000>;
@@ -366,10 +382,10 @@
 		interrupts = <26 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
-	smart-battery@55 {
-		compatible = "ti,bq27210";
-		reg = <0x55>;
-		ti,i2c-retry-count = <2>;
-		ti,poll-retry-count = <10>;
-	};
+	// smart-battery@55 {
+	// 	compatible = "ti,bq27210";
+	// 	reg = <0x55>;
+	// 	ti,i2c-retry-count = <2>;
+	// 	ti,poll-retry-count = <10>;
+	// };
 };
