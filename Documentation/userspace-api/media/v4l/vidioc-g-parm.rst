@@ -1,11 +1,5 @@
-.. Permission is granted to copy, distribute and/or modify this
-.. document under the terms of the GNU Free Documentation License,
-.. Version 1.1 or any later version published by the Free Software
-.. Foundation, with no Invariant Sections, no Front-Cover Texts
-.. and no Back-Cover Texts. A copy of the license is included at
-.. Documentation/userspace-api/media/fdl-appendix.rst.
-..
-.. TODO: replace it to GFDL-1.1-or-later WITH no-invariant-sections
+.. SPDX-License-Identifier: GFDL-1.1-no-invariants-or-later
+.. c:namespace:: V4L
 
 .. _VIDIOC_G_PARM:
 
@@ -18,26 +12,25 @@ Name
 
 VIDIOC_G_PARM - VIDIOC_S_PARM - Get or set streaming parameters
 
-
 Synopsis
 ========
 
-.. c:function:: int ioctl( int fd, VIDIOC_G_PARM, v4l2_streamparm *argp )
-    :name: VIDIOC_G_PARM
+.. c:macro:: VIDIOC_G_PARM
 
-.. c:function:: int ioctl( int fd, VIDIOC_S_PARM, v4l2_streamparm *argp )
-    :name: VIDIOC_S_PARM
+``int ioctl(int fd, VIDIOC_G_PARM, v4l2_streamparm *argp)``
 
+.. c:macro:: VIDIOC_S_PARM
+
+``int ioctl(int fd, VIDIOC_S_PARM, v4l2_streamparm *argp)``
 
 Arguments
 =========
 
 ``fd``
-    File descriptor returned by :ref:`open() <func-open>`.
+    File descriptor returned by :c:func:`open()`.
 
 ``argp``
     Pointer to struct :c:type:`v4l2_streamparm`.
-
 
 Description
 ===========
@@ -55,7 +48,7 @@ format, on the other hand, may change the frame interval.
 
 Further these ioctls can be used to determine the number of buffers used
 internally by a driver in read/write mode. For implications see the
-section discussing the :ref:`read() <func-read>` function.
+section discussing the :c:func:`read()` function.
 
 To get and set the streaming parameters applications call the
 :ref:`VIDIOC_G_PARM <VIDIOC_G_PARM>` and
@@ -63,8 +56,7 @@ To get and set the streaming parameters applications call the
 pointer to a struct :c:type:`v4l2_streamparm` which contains a
 union holding separate parameters for input and output devices.
 
-
-.. tabularcolumns:: |p{3.5cm}|p{3.5cm}|p{3.5cm}|p{7.0cm}|
+.. tabularcolumns:: |p{3.7cm}|p{3.5cm}|p{10.1cm}|
 
 .. c:type:: v4l2_streamparm
 
@@ -93,11 +85,9 @@ union holding separate parameters for input and output devices.
       - ``raw_data``\ [200]
       - A place holder for future extensions.
     * - }
-      -
 
 
-
-.. tabularcolumns:: |p{4.4cm}|p{4.4cm}|p{8.7cm}|
+.. tabularcolumns:: |p{4.4cm}|p{4.4cm}|p{8.5cm}|
 
 .. c:type:: v4l2_captureparm
 
@@ -145,7 +135,7 @@ union holding separate parameters for input and output devices.
     * - __u32
       - ``readbuffers``
       - Applications set this field to the desired number of buffers used
-	internally by the driver in :ref:`read() <func-read>` mode.
+	internally by the driver in :c:func:`read()` mode.
 	Drivers return the actual number of buffers. When an application
 	requests zero buffers, drivers should just return the current
 	setting rather than the minimum or an error code. For details see
@@ -156,8 +146,7 @@ union holding separate parameters for input and output devices.
 	the array to zero.
 
 
-
-.. tabularcolumns:: |p{4.4cm}|p{4.4cm}|p{8.7cm}|
+.. tabularcolumns:: |p{4.4cm}|p{4.4cm}|p{8.5cm}|
 
 .. c:type:: v4l2_outputparm
 
@@ -179,7 +168,7 @@ union holding separate parameters for input and output devices.
     * - :cspan:`2`
 
 	The field is intended to repeat frames on the driver side in
-	:ref:`write() <func-write>` mode (in streaming mode timestamps
+	:c:func:`write()` mode (in streaming mode timestamps
 	can be used to throttle the output), saving I/O bandwidth.
 
 	For stateful encoders (see :ref:`encoder`) this represents the
@@ -206,7 +195,7 @@ union holding separate parameters for input and output devices.
     * - __u32
       - ``writebuffers``
       - Applications set this field to the desired number of buffers used
-	internally by the driver in :ref:`write() <func-write>` mode. Drivers
+	internally by the driver in :c:func:`write()` mode. Drivers
 	return the actual number of buffers. When an application requests
 	zero buffers, drivers should just return the current setting
 	rather than the minimum or an error code. For details see
@@ -217,8 +206,7 @@ union holding separate parameters for input and output devices.
 	the array to zero.
 
 
-
-.. tabularcolumns:: |p{6.6cm}|p{2.2cm}|p{8.7cm}|
+.. tabularcolumns:: |p{6.6cm}|p{2.2cm}|p{8.5cm}|
 
 .. _parm-caps:
 
@@ -233,8 +221,7 @@ union holding separate parameters for input and output devices.
 	field.
 
 
-
-.. tabularcolumns:: |p{6.6cm}|p{2.2cm}|p{8.7cm}|
+.. tabularcolumns:: |p{6.6cm}|p{2.2cm}|p{8.5cm}|
 
 .. _parm-flags:
 
@@ -272,8 +259,7 @@ union holding separate parameters for input and output devices.
 
 	-  Moving objects in the image might have excessive motion blur.
 
-	-  Capture might only work through the :ref:`read() <func-read>` call.
-
+	-  Capture might only work through the :c:func:`read()` call.
 
 Return Value
 ============

@@ -14,7 +14,7 @@
  *   with a timer counter that goes up. When it overflows it gets
  *   reloaded with the load value and the pwm output goes up.
  *   When counter matches with match register, the output goes down.
- *   Reference Manual: http://www.ti.com/lit/ug/spruh73q/spruh73q.pdf
+ *   Reference Manual: https://www.ti.com/lit/ug/spruh73q/spruh73q.pdf
  *
  * Limitations:
  * - When PWM is stopped, timer counter gets stopped immediately. This
@@ -58,7 +58,7 @@
  * @mutex:		Mutex to protect pwm apply state
  * @dm_timer:		Pointer to omap dm timer.
  * @pdata:		Pointer to omap dm timer ops.
- * dm_timer_pdev:	Pointer to omap dm timer platform device
+ * @dm_timer_pdev:	Pointer to omap dm timer platform device
  */
 struct pwm_omap_dmtimer_chip {
 	struct pwm_chip chip;
@@ -403,7 +403,6 @@ static int pwm_omap_dmtimer_probe(struct platform_device *pdev)
 
 	omap->chip.dev = &pdev->dev;
 	omap->chip.ops = &pwm_omap_dmtimer_ops;
-	omap->chip.base = -1;
 	omap->chip.npwm = 1;
 	omap->chip.of_xlate = of_pwm_xlate_with_flags;
 	omap->chip.of_pwm_n_cells = 3;

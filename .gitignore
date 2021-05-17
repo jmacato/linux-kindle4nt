@@ -19,6 +19,7 @@ OUTPUT/
 *.c.[012]*.*
 *.dt.yaml
 *.dtb
+*.dtbo
 *.dtb.S
 *.dwo
 *.elf
@@ -42,27 +43,28 @@ OUTPUT/
 *.so.dbg
 *.su
 *.symtypes
+*.symversions
 *.tab.[ch]
 *.tar
 *.xz
 *.zst
 Module.symvers
-modules.builtin
 modules.order
 
 #
 # Top-level generic files
 #
-/tags
-/TAGS
 /linux
+/modules-only.symvers
 /vmlinux
 /vmlinux.32
+/vmlinux.map
 /vmlinux.symvers
 /vmlinux-gdb.py
 /vmlinuz
 /System.map
 /Module.markers
+/modules.builtin
 /modules.builtin.modinfo
 /modules.nsdeps
 
@@ -111,6 +113,10 @@ patches-*
 patches
 series
 
+# ctags files
+tags
+TAGS
+
 # cscope files
 cscope.*
 ncscope.*
@@ -153,3 +159,6 @@ x509.genkey
 
 # Clang's compilation database file
 /compile_commands.json
+
+# Documentation toolchain
+sphinx_*/

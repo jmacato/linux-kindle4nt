@@ -242,6 +242,7 @@ static int __red_change(struct Qdisc *sch, struct nlattr **tb,
 	unsigned char flags;
 	int err;
 	u32 max_P;
+	u8 *stab;
 
 	if (tb[TCA_RED_PARMS] == NULL ||
 	    tb[TCA_RED_STAB] == NULL)
@@ -250,7 +251,9 @@ static int __red_change(struct Qdisc *sch, struct nlattr **tb,
 	max_P = tb[TCA_RED_MAX_P] ? nla_get_u32(tb[TCA_RED_MAX_P]) : 0;
 
 	ctl = nla_data(tb[TCA_RED_PARMS]);
-	if (!red_check_params(ctl->qth_min, ctl->qth_max, ctl->Wlog))
+	stab = nla_data(tb[TCA_RED_STAB]);
+	if (!red_check_params(ctl->qth_min, ctl->qth_max, ctl->Wlog,
+			      ctl->Scell_log, stab))
 		return -EINVAL;
 
 	err = red_get_flags(ctl->flags, TC_RED_HISTORIC_FLAGS,
@@ -288,7 +291,7 @@ static int __red_change(struct Qdisc *sch, struct nlattr **tb,
 	red_set_parms(&q->parms,
 		      ctl->qth_min, ctl->qth_max, ctl->Wlog,
 		      ctl->Plog, ctl->Scell_log,
-		      nla_data(tb[TCA_RED_STAB]),
+		      stab,
 		      max_P);
 	red_set_vars(&q->vars);
 
@@ -353,23 +356,11 @@ static int red_init(struct Qdisc *sch, struct nlattr *opt,
 			      FLOW_BLOCK_BINDER_TYPE_RED_EARLY_DROP,
 			      tb[TCA_RED_EARLY_DROP_BLOCK], extack);
 	if (err)
-		goto err_early_drop_init;
+		return err;
 
-	err = tcf_qevent_init(&q->qe_mark, sch,
-			      FLOW_BLOCK_BINDER_TYPE_RED_MARK,
-			      tb[TCA_RED_MARK_BLOCK], extack);
-	if (err)
-		goto err_mark_init;
-
-	return 0;
-
-err_mark_init:
-	tcf_qevent_destroy(&q->qe_early_drop, sch);
-err_early_drop_init:
-	del_timer_sync(&q->adapt_timer);
-	red_offload(sch, false);
-	qdisc_put(q->qdisc);
-	return err;
+	return tcf_qevent_init(&q->qe_mark, sch,
+			       FLOW_BLOCK_BINDER_TYPE_RED_MARK,
+			       tb[TCA_RED_MARK_BLOCK], extack);
 }
 
 static int red_change(struct Qdisc *sch, struct nlattr *opt,

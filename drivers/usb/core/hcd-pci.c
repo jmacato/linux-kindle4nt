@@ -160,7 +160,8 @@ static void ehci_wait_for_companions(struct pci_dev *pdev, struct usb_hcd *hcd,
  * @dev: USB Host Controller being probed
  * @id: pci hotplug id connecting controller to HCD framework
  * @driver: USB HC driver handle
- * Context: !in_interrupt()
+ *
+ * Context: task context, might sleep
  *
  * Allocates basic PCI resources for this USB host controller, and
  * then invokes the start() method for the HCD associated with it
@@ -304,7 +305,8 @@ EXPORT_SYMBOL_GPL(usb_hcd_pci_probe);
 /**
  * usb_hcd_pci_remove - shutdown processing for PCI-based HCDs
  * @dev: USB Host Controller being removed
- * Context: !in_interrupt()
+ *
+ * Context: task context, might sleep
  *
  * Reverses the effect of usb_hcd_pci_probe(), first invoking
  * the HCD's stop() method.  It is always called from a thread
@@ -315,10 +317,13 @@ EXPORT_SYMBOL_GPL(usb_hcd_pci_probe);
 void usb_hcd_pci_remove(struct pci_dev *dev)
 {
 	struct usb_hcd		*hcd;
+	int			hcd_driver_flags;
 
 	hcd = pci_get_drvdata(dev);
 	if (!hcd)
 		return;
+
+	hcd_driver_flags = hcd->driver->flags;
 
 	if (pci_dev_run_wake(dev))
 		pm_runtime_get_noresume(&dev->dev);
@@ -347,7 +352,7 @@ void usb_hcd_pci_remove(struct pci_dev *dev)
 		up_read(&companions_rwsem);
 	}
 	usb_put_hcd(hcd);
-	if ((hcd->driver->flags & HCD_MASK) < HCD_USB3)
+	if ((hcd_driver_flags & HCD_MASK) < HCD_USB3)
 		pci_free_irq_vectors(dev);
 	pci_disable_device(dev);
 }

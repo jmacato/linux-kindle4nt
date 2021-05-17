@@ -21,7 +21,6 @@
 #include <linux/module.h>
 #include <linux/atmdev.h>
 #include <linux/sonet.h>
-#include <linux/atm_suni.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
@@ -100,8 +99,6 @@ static LIST_HEAD(fore200e_boards);
 
 MODULE_AUTHOR("Christophe Lizzi - credits to Uwe Dannowski and Heikki Vatiainen");
 MODULE_DESCRIPTION("FORE Systems 200E-series ATM driver - version " FORE200E_VERSION);
-MODULE_SUPPORTED_DEVICE("PCA-200E, SBA-200E");
-
 
 static const int fore200e_rx_buf_nbr[ BUFFER_SCHEME_NBR ][ BUFFER_MAGN_NBR ] = {
     { BUFFER_S1_NBR, BUFFER_L1_NBR },
@@ -376,33 +373,33 @@ fore200e_shutdown(struct fore200e* fore200e)
     case FORE200E_STATE_COMPLETE:
 	kfree(fore200e->stats);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_IRQ:
 	free_irq(fore200e->irq, fore200e->atm_dev);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_ALLOC_BUF:
 	fore200e_free_rx_buf(fore200e);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_INIT_BSQ:
 	fore200e_uninit_bs_queue(fore200e);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_INIT_RXQ:
 	fore200e_dma_chunk_free(fore200e, &fore200e->host_rxq.status);
 	fore200e_dma_chunk_free(fore200e, &fore200e->host_rxq.rpd);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_INIT_TXQ:
 	fore200e_dma_chunk_free(fore200e, &fore200e->host_txq.status);
 	fore200e_dma_chunk_free(fore200e, &fore200e->host_txq.tpd);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_INIT_CMDQ:
 	fore200e_dma_chunk_free(fore200e, &fore200e->host_cmdq.status);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_INITIALIZE:
 	/* nothing to do for that state */
 
@@ -415,7 +412,7 @@ fore200e_shutdown(struct fore200e* fore200e)
     case FORE200E_STATE_MAP:
 	fore200e->bus->unmap(fore200e);
 
-	/* fall through */
+	fallthrough;
     case FORE200E_STATE_CONFIGURE:
 	/* nothing to do for that state */
 

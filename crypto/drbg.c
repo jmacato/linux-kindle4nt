@@ -98,6 +98,7 @@
  */
 
 #include <crypto/drbg.h>
+#include <crypto/internal/cipher.h>
 #include <linux/kernel.h>
 
 /***************************************************************
@@ -1521,7 +1522,7 @@ static int drbg_prepare_hrng(struct drbg_state *drbg)
 
 	case -EALREADY:
 		err = 0;
-		/* fall through */
+		fallthrough;
 
 	default:
 		drbg->random_ready.func = NULL;
@@ -2161,3 +2162,4 @@ MODULE_DESCRIPTION("NIST SP800-90A Deterministic Random Bit Generator (DRBG) "
 		   CRYPTO_DRBG_HMAC_STRING
 		   CRYPTO_DRBG_CTR_STRING);
 MODULE_ALIAS_CRYPTO("stdrng");
+MODULE_IMPORT_NS(CRYPTO_INTERNAL);

@@ -12,8 +12,6 @@
 
 #include <uapi/misc/habanalabs.h>
 
-#include <linux/coresight.h>
-
 #define GOYA_PLDM_CORESIGHT_TIMEOUT_USEC	(CORESIGHT_TIMEOUT_USEC * 100)
 
 #define SPMU_SECTION_SIZE		DMA_CH_0_CS_SPMU_MAX_OFFSET
@@ -362,10 +360,16 @@ static int goya_config_etf(struct hl_device *hdev,
 }
 
 static int goya_etr_validate_address(struct hl_device *hdev, u64 addr,
-		u32 size)
+		u64 size)
 {
 	struct asic_fixed_properties *prop = &hdev->asic_prop;
 	u64 range_start, range_end;
+
+	if (addr > (addr + size)) {
+		dev_err(hdev->dev,
+			"ETR buffer size %llu overflow\n", size);
+		return false;
+	}
 
 	if (hdev->mmu_enable) {
 		range_start = prop->dmmu.start_addr;
@@ -430,8 +434,15 @@ static int goya_config_etr(struct hl_device *hdev,
 		WREG32(mmPSOC_ETR_BUFWM, 0x3FFC);
 		WREG32(mmPSOC_ETR_RSZ, input->buffer_size);
 		WREG32(mmPSOC_ETR_MODE, input->sink_mode);
-		WREG32(mmPSOC_ETR_AXICTL,
-				0x700 | PSOC_ETR_AXICTL_PROTCTRLBIT1_SHIFT);
+		if (hdev->asic_prop.fw_security_disabled) {
+			/* make ETR not privileged */
+			val = FIELD_PREP(PSOC_ETR_AXICTL_PROTCTRLBIT0_MASK, 0);
+			/* make ETR non-secured (inverted logic) */
+			val |= FIELD_PREP(PSOC_ETR_AXICTL_PROTCTRLBIT1_MASK, 1);
+			/* burst size 8 */
+			val |= FIELD_PREP(PSOC_ETR_AXICTL_WRBURSTLEN_MASK, 7);
+			WREG32(mmPSOC_ETR_AXICTL, val);
+		}
 		WREG32(mmPSOC_ETR_DBALO,
 				lower_32_bits(input->buffer_address));
 		WREG32(mmPSOC_ETR_DBAHI,

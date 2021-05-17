@@ -24,7 +24,7 @@ properties:
       - socionext,uniphier-pxs3-usb3-hsphy
 
   reg:
-    description: PHY register region (offset and length)
+    maxItems: 1
 
   "#phy-cells":
     const: 0
@@ -37,12 +37,12 @@ properties:
     oneOf:
       - const: link          # for PXs2
       - items:               # for PXs3 with phy-ext
-        - const: link
-        - const: phy
-        - const: phy-ext
+          - const: link
+          - const: phy
+          - const: phy-ext
       - items:               # for others
-        - const: link
-        - const: phy
+          - const: link
+          - const: phy
 
   resets:
     maxItems: 2

@@ -339,7 +339,6 @@ static int psc_dma_new(struct snd_soc_component *component,
 static void psc_dma_free(struct snd_soc_component *component,
 			 struct snd_pcm *pcm)
 {
-	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
 	struct snd_pcm_substream *substream;
 	int stream;
 
@@ -412,7 +411,7 @@ int mpc5200_audio_dma_create(struct platform_device *op)
 	psc_dma->dev = &op->dev;
 	psc_dma->playback.psc_dma = psc_dma;
 	psc_dma->capture.psc_dma = psc_dma;
-	snprintf(psc_dma->name, sizeof psc_dma->name, "PSC%u", psc_dma->id);
+	snprintf(psc_dma->name, sizeof(psc_dma->name), "PSC%d", psc_dma->id);
 
 	/* Find the address of the fifo data registers and setup the
 	 * DMA tasks */

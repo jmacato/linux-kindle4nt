@@ -276,8 +276,8 @@ static int qcom_ipq806x_usb_hs_phy_init(struct phy *phy)
 	val = HSUSB_CTRL_DPSEHV_CLAMP | HSUSB_CTRL_DMSEHV_CLAMP |
 		HSUSB_CTRL_RETENABLEN  | HSUSB_CTRL_COMMONONN |
 		HSUSB_CTRL_OTGSESSVLD_CLAMP | HSUSB_CTRL_ID_HV_CLAMP |
-		HSUSB_CTRL_DPSEHV_CLAMP | HSUSB_CTRL_UTMI_OTG_VBUS_VALID |
-		HSUSB_CTRL_UTMI_CLK_EN | HSUSB_CTRL_CLAMP_EN | 0x70;
+		HSUSB_CTRL_UTMI_OTG_VBUS_VALID | HSUSB_CTRL_UTMI_CLK_EN |
+		HSUSB_CTRL_CLAMP_EN | 0x70;
 
 	/* use core clock if external reference is not present */
 	if (!phy_dwc3->xo_clk)
@@ -505,9 +505,9 @@ static int qcom_ipq806x_usb_phy_probe(struct platform_device *pdev)
 	size = resource_size(res);
 	phy_dwc3->base = devm_ioremap(phy_dwc3->dev, res->start, size);
 
-	if (IS_ERR(phy_dwc3->base)) {
+	if (!phy_dwc3->base) {
 		dev_err(phy_dwc3->dev, "failed to map reg\n");
-		return PTR_ERR(phy_dwc3->base);
+		return -ENOMEM;
 	}
 
 	phy_dwc3->ref_clk = devm_clk_get(phy_dwc3->dev, "ref");
@@ -557,7 +557,6 @@ static struct platform_driver qcom_ipq806x_usb_phy_driver = {
 	.probe		= qcom_ipq806x_usb_phy_probe,
 	.driver		= {
 		.name	= "qcom-ipq806x-usb-phy",
-		.owner	= THIS_MODULE,
 		.of_match_table = qcom_ipq806x_usb_phy_table,
 	},
 };

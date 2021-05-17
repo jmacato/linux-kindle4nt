@@ -49,6 +49,8 @@
 #include <linux/cuda.h>
 #ifdef CONFIG_PPC_PMAC
 #include <asm/prom.h>
+#endif
+#ifdef CONFIG_BOOTX_TEXT
 #include <asm/btext.h>
 #endif
 
@@ -62,9 +64,9 @@
 #undef in_le32
 #undef out_le32
 #define in_8(addr)		0
-#define out_8(addr, val)
+#define out_8(addr, val)	(void)(val)
 #define in_le32(addr)		0
-#define out_le32(addr, val)
+#define out_le32(addr, val)	(void)(val)
 #define pgprot_cached_wthru(prot) (prot)
 #else
 static void invalid_vram_cache(void __force *addr)
@@ -713,7 +715,7 @@ static int controlfb_blank(int blank_mode, struct fb_info *info)
 			break;
 		case FB_BLANK_POWERDOWN:
 			ctrl &= ~0x33;
-			/* fall through */
+			fallthrough;
 		case FB_BLANK_NORMAL:
 			ctrl |= 0x400;
 			break;

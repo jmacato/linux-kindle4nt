@@ -137,10 +137,8 @@ static struct sk_buff *rx_alloc_skb(struct hinic_rxq *rxq,
 	int err;
 
 	skb = netdev_alloc_skb_ip_align(rxq->netdev, rxq->rq->buf_sz);
-	if (!skb) {
-		netdev_err(rxq->netdev, "Failed to allocate Rx SKB\n");
+	if (!skb)
 		return NULL;
-	}
 
 	addr = dma_map_single(&pdev->dev, skb->data, rxq->rq->buf_sz,
 			      DMA_FROM_DEVICE);
@@ -212,10 +210,8 @@ static int rx_alloc_pkts(struct hinic_rxq *rxq)
 
 	for (i = 0; i < free_wqebbs; i++) {
 		skb = rx_alloc_skb(rxq, &dma_addr);
-		if (!skb) {
-			netdev_err(rxq->netdev, "Failed to alloc Rx skb\n");
+		if (!skb)
 			goto skb_out;
-		}
 
 		hinic_set_sge(&sge, dma_addr, skb->len);
 
@@ -543,18 +539,25 @@ static int rx_request_irq(struct hinic_rxq *rxq)
 	if (err) {
 		netif_err(nic_dev, drv, rxq->netdev,
 			  "Failed to set RX interrupt coalescing attribute\n");
-		rx_del_napi(rxq);
-		return err;
+		goto err_req_irq;
 	}
 
 	err = request_irq(rq->irq, rx_irq, 0, rxq->irq_name, rxq);
-	if (err) {
-		rx_del_napi(rxq);
-		return err;
-	}
+	if (err)
+		goto err_req_irq;
 
 	cpumask_set_cpu(qp->q_id % num_online_cpus(), &rq->affinity_mask);
-	return irq_set_affinity_hint(rq->irq, &rq->affinity_mask);
+	err = irq_set_affinity_hint(rq->irq, &rq->affinity_mask);
+	if (err)
+		goto err_irq_affinity;
+
+	return 0;
+
+err_irq_affinity:
+	free_irq(rq->irq, rxq);
+err_req_irq:
+	rx_del_napi(rxq);
+	return err;
 }
 
 static void rx_free_irq(struct hinic_rxq *rxq)
@@ -588,7 +591,7 @@ int hinic_init_rxq(struct hinic_rxq *rxq, struct hinic_rq *rq,
 	rxq_stats_init(rxq);
 
 	rxq->irq_name = devm_kasprintf(&netdev->dev, GFP_KERNEL,
-				       "hinic_rxq%d", qp->q_id);
+				       "%s_rxq%d", netdev->name, qp->q_id);
 	if (!rxq->irq_name)
 		return -ENOMEM;
 

@@ -647,7 +647,7 @@ static void lg_g15_input_close(struct input_dev *dev)
 
 static int lg_g15_register_led(struct lg_g15_data *g15, int i)
 {
-	const char * const led_names[] = {
+	static const char * const led_names[] = {
 		"g15::kbd_backlight",
 		"g15::lcd_backlight",
 		"g15::macro_preset1",
@@ -680,7 +680,7 @@ static int lg_g15_register_led(struct lg_g15_data *g15, int i)
 			 * but it does have a separate power-on (reset) value.
 			 */
 			g15->leds[i].cdev.name = "g15::power_on_backlight_val";
-			/* fall through */
+			fallthrough;
 		case LG_G15_KBD_BRIGHTNESS:
 			g15->leds[i].cdev.brightness_set_blocking =
 				lg_g510_kbd_led_set;

@@ -129,7 +129,7 @@ ide_startstop_t do_rw_taskfile(ide_drive_t *drive, struct ide_cmd *orig_cmd)
 			return pre_task_out_intr(drive, cmd);
 		}
 		handler = task_pio_intr;
-		/* fall through */
+		fallthrough;
 	case ATA_PROT_NODATA:
 		if (handler == NULL)
 			handler = task_no_data_intr;
@@ -141,7 +141,7 @@ ide_startstop_t do_rw_taskfile(ide_drive_t *drive, struct ide_cmd *orig_cmd)
 		hwif->expiry = dma_ops->dma_timer_expiry;
 		ide_execute_command(drive, cmd, ide_dma_intr, 2 * WAIT_CMD);
 		dma_ops->dma_start(drive);
-		/* fall through */
+		fallthrough;
 	default:
 		return ide_started;
 	}
@@ -443,7 +443,7 @@ int ide_raw_taskfile(ide_drive_t *drive, struct ide_cmd *cmd, u8 *buf,
 	ide_req(rq)->special = cmd;
 	cmd->rq = rq;
 
-	blk_execute_rq(drive->queue, NULL, rq, 0);
+	blk_execute_rq(NULL, rq, 0);
 	error = scsi_req(rq)->result ? -EIO : 0;
 put_req:
 	blk_put_request(rq);
@@ -579,10 +579,10 @@ int ide_taskfile_ioctl(ide_drive_t *drive, unsigned long arg)
 			goto abort;
 		}
 		cmd.tf_flags |= IDE_TFLAG_MULTI_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_OUT:
 		cmd.protocol = ATA_PROT_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_OUT_DMAQ:
 	case TASKFILE_OUT_DMA:
 		cmd.tf_flags |= IDE_TFLAG_WRITE;
@@ -598,10 +598,10 @@ int ide_taskfile_ioctl(ide_drive_t *drive, unsigned long arg)
 			goto abort;
 		}
 		cmd.tf_flags |= IDE_TFLAG_MULTI_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_IN:
 		cmd.protocol = ATA_PROT_PIO;
-		/* fall through */
+		fallthrough;
 	case TASKFILE_IN_DMAQ:
 	case TASKFILE_IN_DMA:
 		nsect = taskin / SECTOR_SIZE;

@@ -1,18 +1,11 @@
-.. Permission is granted to copy, distribute and/or modify this
-.. document under the terms of the GNU Free Documentation License,
-.. Version 1.1 or any later version published by the Free Software
-.. Foundation, with no Invariant Sections, no Front-Cover Texts
-.. and no Back-Cover Texts. A copy of the license is included at
-.. Documentation/userspace-api/media/fdl-appendix.rst.
-..
-.. TODO: replace it to GFDL-1.1-or-later WITH no-invariant-sections
+.. SPDX-License-Identifier: GFDL-1.1-no-invariants-or-later
 
 .. _media-controller-types:
 
 Types and flags used to represent the media graph elements
 ==========================================================
 
-..  tabularcolumns:: |p{8.2cm}|p{10.3cm}|
+..  tabularcolumns:: |p{8.2cm}|p{9.3cm}|
 
 .. _media-entity-functions:
 .. _MEDIA-ENT-F-UNKNOWN:
@@ -46,6 +39,7 @@ Types and flags used to represent the media graph elements
 .. _MEDIA-ENT-F-PROC-VIDEO-STATISTICS:
 .. _MEDIA-ENT-F-PROC-VIDEO-ENCODER:
 .. _MEDIA-ENT-F-PROC-VIDEO-DECODER:
+.. _MEDIA-ENT-F-PROC-VIDEO-ISP:
 .. _MEDIA-ENT-F-VID-MUX:
 .. _MEDIA-ENT-F-VID-IF-BRIDGE:
 .. _MEDIA-ENT-F-DV-DECODER:
@@ -208,6 +202,12 @@ Types and flags used to represent the media graph elements
           decompressing a compressed video stream into uncompressed video
 	  frames. Must have one sink pad and at least one source pad.
 
+    *  -  ``MEDIA_ENT_F_PROC_VIDEO_ISP``
+       -  An Image Signal Processor (ISP) device. ISPs generally are one of a
+	  kind devices that have their specific control interfaces using a
+	  combination of custom V4L2 controls and IOCTLs, and parameters
+	  supplied in a metadata buffer.
+
     *  -  ``MEDIA_ENT_F_VID_MUX``
        - Video multiplexer. An entity capable of multiplexing must have at
          least two sink pads and one source pad, and must pass the video
@@ -251,7 +251,7 @@ Types and flags used to represent the media graph elements
        -  The entity represents a connector.
 
 
-..  tabularcolumns:: |p{6.5cm}|p{6.0cm}|p{5.0cm}|
+..  tabularcolumns:: |p{6.5cm}|p{6.0cm}|p{4.8cm}|
 
 .. _media-intf-type:
 .. _MEDIA-INTF-T-DVB-FE:

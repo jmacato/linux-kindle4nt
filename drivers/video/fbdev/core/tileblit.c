@@ -80,7 +80,7 @@ static void tile_clear_margins(struct vc_data *vc, struct fb_info *info,
 }
 
 static void tile_cursor(struct vc_data *vc, struct fb_info *info, int mode,
-			int softback_lines, int fg, int bg)
+			int fg, int bg)
 {
 	struct fb_tilecursor cursor;
 	int use_sw = vc->vc_cursor_type & CUR_SW;
@@ -144,11 +144,8 @@ void fbcon_set_tileops(struct vc_data *vc, struct fb_info *info)
 		map.width = vc->vc_font.width;
 		map.height = vc->vc_font.height;
 		map.depth = 1;
-		map.length = (ops->p->userfont) ?
-			FNTCHARCNT(ops->p->fontdata) : 256;
+		map.length = vc->vc_font.charcount;
 		map.data = ops->p->fontdata;
 		info->tileops->fb_settile(info, &map);
 	}
 }
-
-EXPORT_SYMBOL(fbcon_set_tileops);

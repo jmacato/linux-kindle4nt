@@ -28,7 +28,8 @@
 #include <crypto/internal/hash.h>
 #include <crypto/internal/skcipher.h>
 #include <crypto/scatterwalk.h>
-#include <crypto/sha.h>
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
 #include <crypto/xts.h>
 
 /* Max length of a line in all cache levels for Artpec SoCs. */
@@ -2310,7 +2311,7 @@ static int artpec6_crypto_prepare_submit_hash(struct ahash_request *req)
 
 	case ARTPEC6_CRYPTO_PREPARE_HASH_NO_START:
 		ret = 0;
-		/* Fallthrough */
+		fallthrough;
 
 	default:
 		artpec6_crypto_common_destroy(&req_ctx->common);

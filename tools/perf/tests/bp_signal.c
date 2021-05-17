@@ -45,10 +45,13 @@ volatile long the_var;
 #if defined (__x86_64__)
 extern void __test_function(volatile long *ptr);
 asm (
+	".pushsection .text;"
 	".globl __test_function\n"
+	".type __test_function, @function;"
 	"__test_function:\n"
 	"incq (%rdi)\n"
-	"ret\n");
+	"ret\n"
+	".popsection\n");
 #else
 static void __test_function(volatile long *ptr)
 {
@@ -222,11 +225,11 @@ int test__bp_signal(struct test *test __maybe_unused, int subtest __maybe_unused
 	 *
 	 * The test case check following error conditions:
 	 * - we get stuck in signal handler because of debug
-	 *   exception being triggered receursively due to
+	 *   exception being triggered recursively due to
 	 *   the wrong RF EFLAG management
 	 *
 	 * - we never trigger the sig_handler breakpoint due
-	 *   to the rong RF EFLAG management
+	 *   to the wrong RF EFLAG management
 	 *
 	 */
 
@@ -239,7 +242,7 @@ int test__bp_signal(struct test *test __maybe_unused, int subtest __maybe_unused
 	ioctl(fd3, PERF_EVENT_IOC_ENABLE, 0);
 
 	/*
-	 * Kick off the test by trigering 'fd1'
+	 * Kick off the test by triggering 'fd1'
 	 * breakpoint.
 	 */
 	test_function();

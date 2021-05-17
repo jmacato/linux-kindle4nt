@@ -89,9 +89,9 @@ libbpf_print_none(__maybe_unused enum libbpf_print_level level,
 
 int build_obj_refs_table(struct obj_refs_table *table, enum bpf_obj_type type)
 {
-	char buf[4096];
-	struct pid_iter_bpf *skel;
 	struct pid_iter_entry *e;
+	char buf[4096 / sizeof(*e) * sizeof(*e)];
+	struct pid_iter_bpf *skel;
 	int err, ret, fd = -1, i;
 	libbpf_print_fn_t default_print;
 
@@ -134,6 +134,8 @@ int build_obj_refs_table(struct obj_refs_table *table, enum bpf_obj_type type)
 	while (true) {
 		ret = read(fd, buf, sizeof(buf));
 		if (ret < 0) {
+			if (errno == EAGAIN)
+				continue;
 			err = -errno;
 			p_err("failed to read PID iterator output: %d", err);
 			goto out;

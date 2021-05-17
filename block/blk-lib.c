@@ -47,6 +47,15 @@ int __blkdev_issue_discard(struct block_device *bdev, sector_t sector,
 		op = REQ_OP_DISCARD;
 	}
 
+	/* In case the discard granularity isn't set by buggy device driver */
+	if (WARN_ON_ONCE(!q->limits.discard_granularity)) {
+		char dev_name[BDEVNAME_SIZE];
+
+		bdevname(bdev, dev_name);
+		pr_err_ratelimited("%s: Error: discard_granularity is 0.\n", dev_name);
+		return -EOPNOTSUPP;
+	}
+
 	bs_mask = (bdev_logical_block_size(bdev) >> 9) - 1;
 	if ((sector | nr_sects) & bs_mask)
 		return -EINVAL;
@@ -55,8 +64,8 @@ int __blkdev_issue_discard(struct block_device *bdev, sector_t sector,
 		return -EINVAL;
 
 	/* In case the discard request is in a partition */
-	if (bdev->bd_partno)
-		part_offset = bdev->bd_part->start_sect;
+	if (bdev_is_partition(bdev))
+		part_offset = bdev->bd_start_sect;
 
 	while (nr_sects) {
 		sector_t granularity_aligned_lba, req_sects;
@@ -287,7 +296,7 @@ static unsigned int __blkdev_sectors_to_bio_pages(sector_t nr_sects)
 {
 	sector_t pages = DIV_ROUND_UP_SECTOR_T(nr_sects, PAGE_SIZE / 512);
 
-	return min(pages, (sector_t)BIO_MAX_PAGES);
+	return min(pages, (sector_t)BIO_MAX_VECS);
 }
 
 static int __blkdev_issue_zero_pages(struct block_device *bdev,

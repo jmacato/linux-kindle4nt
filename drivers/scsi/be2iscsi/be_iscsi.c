@@ -295,7 +295,7 @@ void beiscsi_iface_destroy_default(struct beiscsi_hba *phba)
 }
 
 /**
- * beiscsi_set_vlan_tag()- Set the VLAN TAG
+ * beiscsi_iface_config_vlan()- Set the VLAN TAG
  * @shost: Scsi Host for the driver instance
  * @iface_param: Interface paramters
  *
@@ -677,7 +677,7 @@ int beiscsi_set_param(struct iscsi_cls_conn *cls_conn,
 	case ISCSI_PARAM_MAX_XMIT_DLENGTH:
 		if (conn->max_xmit_dlength > 65536)
 			conn->max_xmit_dlength = 65536;
-		/* fall through */
+		fallthrough;
 	default:
 		return 0;
 	}

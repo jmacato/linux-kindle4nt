@@ -217,7 +217,7 @@ static void mtk_cirq_resume(void)
 {
 	u32 value;
 
-	/* flush recored interrupts, will send signals to parent controller */
+	/* flush recorded interrupts, will send signals to parent controller */
 	value = readl_relaxed(cirq_data->base + CIRQ_CONTROL);
 	writel_relaxed(value | CIRQ_FLUSH, cirq_data->base + CIRQ_CONTROL);
 
@@ -295,6 +295,4 @@ out_free:
 	return ret;
 }
 
-IRQCHIP_PLATFORM_DRIVER_BEGIN(mtk_cirq)
-IRQCHIP_MATCH("mediatek,mtk-cirq", mtk_cirq_of_init)
-IRQCHIP_PLATFORM_DRIVER_END(mtk_cirq)
+IRQCHIP_DECLARE(mtk_cirq, "mediatek,mtk-cirq", mtk_cirq_of_init);

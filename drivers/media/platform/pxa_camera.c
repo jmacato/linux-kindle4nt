@@ -31,7 +31,6 @@
 #include <linux/dma/pxa-dma.h>
 
 #include <media/v4l2-async.h>
-#include <media/v4l2-clk.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -605,42 +604,6 @@ static const struct pxa_mbus_pixelfmt *pxa_mbus_get_fmtdesc(
 	return pxa_mbus_find_fmtdesc(code, mbus_fmt, ARRAY_SIZE(mbus_fmt));
 }
 
-static unsigned int pxa_mbus_config_compatible(const struct v4l2_mbus_config *cfg,
-					unsigned int flags)
-{
-	unsigned long common_flags;
-	bool hsync = true, vsync = true, pclk, data, mode;
-	bool mipi_lanes, mipi_clock;
-
-	common_flags = cfg->flags & flags;
-
-	switch (cfg->type) {
-	case V4L2_MBUS_PARALLEL:
-		hsync = common_flags & (V4L2_MBUS_HSYNC_ACTIVE_HIGH |
-					V4L2_MBUS_HSYNC_ACTIVE_LOW);
-		vsync = common_flags & (V4L2_MBUS_VSYNC_ACTIVE_HIGH |
-					V4L2_MBUS_VSYNC_ACTIVE_LOW);
-		/* fall through */
-	case V4L2_MBUS_BT656:
-		pclk = common_flags & (V4L2_MBUS_PCLK_SAMPLE_RISING |
-				       V4L2_MBUS_PCLK_SAMPLE_FALLING);
-		data = common_flags & (V4L2_MBUS_DATA_ACTIVE_HIGH |
-				       V4L2_MBUS_DATA_ACTIVE_LOW);
-		mode = common_flags & (V4L2_MBUS_MASTER | V4L2_MBUS_SLAVE);
-		return (!hsync || !vsync || !pclk || !data || !mode) ?
-			0 : common_flags;
-	case V4L2_MBUS_CSI2_DPHY:
-		mipi_lanes = common_flags & V4L2_MBUS_CSI2_LANES;
-		mipi_clock = common_flags & (V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK |
-					     V4L2_MBUS_CSI2_CONTINUOUS_CLOCK);
-		return (!mipi_lanes || !mipi_clock) ? 0 : common_flags;
-	default:
-		WARN_ON(1);
-		return -EINVAL;
-	}
-	return 0;
-}
-
 /**
  * struct pxa_camera_format_xlate - match between host and sensor formats
  * @code: code of a sensor provided format
@@ -692,8 +655,6 @@ struct pxa_camera_dev {
 	const struct pxa_camera_format_xlate *current_fmt;
 	struct v4l2_pix_format	current_pix;
 
-	struct v4l2_async_subdev asd;
-
 	/*
 	 * PXA27x is only supposed to handle one camera on its Quick Capture
 	 * interface. If anyone ever builds hardware to enable more than
@@ -713,7 +674,6 @@ struct pxa_camera_dev {
 	unsigned long		ciclk;
 	unsigned long		mclk;
 	u32			mclk_divisor;
-	struct v4l2_clk		*mclk_clk;
 	u16			width_flags;	/* max 10 bits */
 
 	struct list_head	capture;
@@ -1186,9 +1146,9 @@ static void pxa_camera_deactivate(struct pxa_camera_dev *pcdev)
 	clk_disable_unprepare(pcdev->clk);
 }
 
-static void pxa_camera_eof(unsigned long arg)
+static void pxa_camera_eof(struct tasklet_struct *t)
 {
-	struct pxa_camera_dev *pcdev = (struct pxa_camera_dev *)arg;
+	struct pxa_camera_dev *pcdev = from_tasklet(pcdev, t, task_eof);
 	unsigned long cifr;
 	struct pxa_buffer *buf;
 
@@ -1229,31 +1189,6 @@ static irqreturn_t pxa_camera_irq(int irq, void *data)
 	}
 
 	return IRQ_HANDLED;
-}
-
-static int test_platform_param(struct pxa_camera_dev *pcdev,
-			       unsigned char buswidth, unsigned long *flags)
-{
-	/*
-	 * Platform specified synchronization and pixel clock polarities are
-	 * only a recommendation and are only used during probing. The PXA270
-	 * quick capture interface supports both.
-	 */
-	*flags = (pcdev->platform_flags & PXA_CAMERA_MASTER ?
-		  V4L2_MBUS_MASTER : V4L2_MBUS_SLAVE) |
-		V4L2_MBUS_HSYNC_ACTIVE_HIGH |
-		V4L2_MBUS_HSYNC_ACTIVE_LOW |
-		V4L2_MBUS_VSYNC_ACTIVE_HIGH |
-		V4L2_MBUS_VSYNC_ACTIVE_LOW |
-		V4L2_MBUS_DATA_ACTIVE_HIGH |
-		V4L2_MBUS_PCLK_SAMPLE_RISING |
-		V4L2_MBUS_PCLK_SAMPLE_FALLING;
-
-	/* If requested data width is supported by the platform, use it */
-	if ((1 << (buswidth - 1)) & pcdev->width_flags)
-		return 0;
-
-	return -EINVAL;
 }
 
 static void pxa_camera_setup_cicr(struct pxa_camera_dev *pcdev,
@@ -1317,7 +1252,7 @@ static void pxa_camera_setup_cicr(struct pxa_camera_dev *pcdev,
 		 * transformation. Note that UYVY is the only format that
 		 * should be used if pxa framebuffer Overlay2 is used.
 		 */
-		/* fall through */
+		fallthrough;
 	case V4L2_PIX_FMT_UYVY:
 	case V4L2_PIX_FMT_VYUY:
 	case V4L2_PIX_FMT_YUYV:
@@ -1447,6 +1382,9 @@ static int pxac_vb2_prepare(struct vb2_buffer *vb)
 	struct pxa_camera_dev *pcdev = vb2_get_drv_priv(vb->vb2_queue);
 	struct pxa_buffer *buf = vb2_to_pxa_buffer(vb);
 	int ret = 0;
+#ifdef DEBUG
+	int i;
+#endif
 
 	switch (pcdev->channels) {
 	case 1:
@@ -1598,99 +1536,78 @@ static int pxa_camera_init_videobuf2(struct pxa_camera_dev *pcdev)
  */
 static int pxa_camera_set_bus_param(struct pxa_camera_dev *pcdev)
 {
+	unsigned int bus_width = pcdev->current_fmt->host_fmt->bits_per_sample;
 	struct v4l2_mbus_config cfg = {.type = V4L2_MBUS_PARALLEL,};
 	u32 pixfmt = pcdev->current_fmt->host_fmt->fourcc;
-	unsigned long bus_flags, common_flags;
+	int mbus_config;
 	int ret;
 
-	ret = test_platform_param(pcdev,
-				  pcdev->current_fmt->host_fmt->bits_per_sample,
-				  &bus_flags);
-	if (ret < 0)
-		return ret;
-
-	ret = sensor_call(pcdev, video, g_mbus_config, &cfg);
-	if (!ret) {
-		common_flags = pxa_mbus_config_compatible(&cfg,
-							  bus_flags);
-		if (!common_flags) {
-			dev_warn(pcdev_to_dev(pcdev),
-				 "Flags incompatible: camera 0x%x, host 0x%lx\n",
-				 cfg.flags, bus_flags);
-			return -EINVAL;
-		}
-	} else if (ret != -ENOIOCTLCMD) {
-		return ret;
-	} else {
-		common_flags = bus_flags;
+	if (!((1 << (bus_width - 1)) & pcdev->width_flags)) {
+		dev_err(pcdev_to_dev(pcdev), "Unsupported bus width %u",
+			bus_width);
+		return -EINVAL;
 	}
 
 	pcdev->channels = 1;
 
 	/* Make choices, based on platform preferences */
-	if ((common_flags & V4L2_MBUS_HSYNC_ACTIVE_HIGH) &&
-	    (common_flags & V4L2_MBUS_HSYNC_ACTIVE_LOW)) {
-		if (pcdev->platform_flags & PXA_CAMERA_HSP)
-			common_flags &= ~V4L2_MBUS_HSYNC_ACTIVE_HIGH;
-		else
-			common_flags &= ~V4L2_MBUS_HSYNC_ACTIVE_LOW;
-	}
+	mbus_config = 0;
+	if (pcdev->platform_flags & PXA_CAMERA_MASTER)
+		mbus_config |= V4L2_MBUS_MASTER;
+	else
+		mbus_config |= V4L2_MBUS_SLAVE;
 
-	if ((common_flags & V4L2_MBUS_VSYNC_ACTIVE_HIGH) &&
-	    (common_flags & V4L2_MBUS_VSYNC_ACTIVE_LOW)) {
-		if (pcdev->platform_flags & PXA_CAMERA_VSP)
-			common_flags &= ~V4L2_MBUS_VSYNC_ACTIVE_HIGH;
-		else
-			common_flags &= ~V4L2_MBUS_VSYNC_ACTIVE_LOW;
-	}
+	if (pcdev->platform_flags & PXA_CAMERA_HSP)
+		mbus_config |= V4L2_MBUS_HSYNC_ACTIVE_HIGH;
+	else
+		mbus_config |= V4L2_MBUS_HSYNC_ACTIVE_LOW;
 
-	if ((common_flags & V4L2_MBUS_PCLK_SAMPLE_RISING) &&
-	    (common_flags & V4L2_MBUS_PCLK_SAMPLE_FALLING)) {
-		if (pcdev->platform_flags & PXA_CAMERA_PCP)
-			common_flags &= ~V4L2_MBUS_PCLK_SAMPLE_RISING;
-		else
-			common_flags &= ~V4L2_MBUS_PCLK_SAMPLE_FALLING;
-	}
+	if (pcdev->platform_flags & PXA_CAMERA_VSP)
+		mbus_config |= V4L2_MBUS_VSYNC_ACTIVE_HIGH;
+	else
+		mbus_config |= V4L2_MBUS_VSYNC_ACTIVE_LOW;
 
-	cfg.flags = common_flags;
-	ret = sensor_call(pcdev, video, s_mbus_config, &cfg);
+	if (pcdev->platform_flags & PXA_CAMERA_PCP)
+		mbus_config |= V4L2_MBUS_PCLK_SAMPLE_RISING;
+	else
+		mbus_config |= V4L2_MBUS_PCLK_SAMPLE_FALLING;
+	mbus_config |= V4L2_MBUS_DATA_ACTIVE_HIGH;
+
+	cfg.flags = mbus_config;
+	ret = sensor_call(pcdev, pad, set_mbus_config, 0, &cfg);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
-		dev_dbg(pcdev_to_dev(pcdev),
-			"camera s_mbus_config(0x%lx) returned %d\n",
-			common_flags, ret);
+		dev_err(pcdev_to_dev(pcdev),
+			"Failed to call set_mbus_config: %d\n", ret);
 		return ret;
 	}
 
-	pxa_camera_setup_cicr(pcdev, common_flags, pixfmt);
-
-	return 0;
-}
-
-static int pxa_camera_try_bus_param(struct pxa_camera_dev *pcdev,
-				    unsigned char buswidth)
-{
-	struct v4l2_mbus_config cfg = {.type = V4L2_MBUS_PARALLEL,};
-	unsigned long bus_flags, common_flags;
-	int ret = test_platform_param(pcdev, buswidth, &bus_flags);
-
-	if (ret < 0)
-		return ret;
-
-	ret = sensor_call(pcdev, video, g_mbus_config, &cfg);
-	if (!ret) {
-		common_flags = pxa_mbus_config_compatible(&cfg,
-							  bus_flags);
-		if (!common_flags) {
-			dev_warn(pcdev_to_dev(pcdev),
-				 "Flags incompatible: camera 0x%x, host 0x%lx\n",
-				 cfg.flags, bus_flags);
+	/*
+	 * If the requested media bus configuration has not been fully applied
+	 * make sure it is supported by the platform.
+	 *
+	 * PXA does not support V4L2_MBUS_DATA_ACTIVE_LOW and the bus mastering
+	 * roles should match.
+	 */
+	if (cfg.flags != mbus_config) {
+		unsigned int pxa_mbus_role = mbus_config & (V4L2_MBUS_MASTER |
+							    V4L2_MBUS_SLAVE);
+		if (pxa_mbus_role != (cfg.flags & (V4L2_MBUS_MASTER |
+						   V4L2_MBUS_SLAVE))) {
+			dev_err(pcdev_to_dev(pcdev),
+				"Unsupported mbus configuration: bus mastering\n");
 			return -EINVAL;
 		}
-	} else if (ret == -ENOIOCTLCMD) {
-		ret = 0;
+
+		if (cfg.flags & V4L2_MBUS_DATA_ACTIVE_LOW) {
+			dev_err(pcdev_to_dev(pcdev),
+				"Unsupported mbus configuration: DATA_ACTIVE_LOW\n");
+			return -EINVAL;
+		}
 	}
 
-	return ret;
+	pxa_camera_setup_cicr(pcdev, cfg.flags, pixfmt);
+
+	return 0;
 }
 
 static const struct pxa_mbus_pixelfmt pxa_camera_formats[] = {
@@ -1738,11 +1655,6 @@ static int pxa_camera_get_formats(struct v4l2_device *v4l2_dev,
 		return 0;
 	}
 
-	/* This also checks support for the requested bits-per-sample */
-	ret = pxa_camera_try_bus_param(pcdev, fmt->bits_per_sample);
-	if (ret < 0)
-		return 0;
-
 	switch (code.code) {
 	case MEDIA_BUS_FMT_UYVY8_2X8:
 		formats++;
@@ -1754,7 +1666,7 @@ static int pxa_camera_get_formats(struct v4l2_device *v4l2_dev,
 				"Providing format %s using code %d\n",
 				pxa_camera_formats[0].name, code.code);
 		}
-	/* fall through */
+		fallthrough;
 	case MEDIA_BUS_FMT_VYUY8_2X8:
 	case MEDIA_BUS_FMT_YUYV8_2X8:
 	case MEDIA_BUS_FMT_YVYU8_2X8:
@@ -2117,9 +2029,6 @@ static const struct v4l2_ioctl_ops pxa_camera_ioctl_ops = {
 	.vidioc_unsubscribe_event	= v4l2_event_unsubscribe,
 };
 
-static const struct v4l2_clk_ops pxa_camera_mclk_ops = {
-};
-
 static const struct video_device pxa_camera_videodev_template = {
 	.name = "pxa-camera",
 	.minor = -1,
@@ -2227,11 +2136,6 @@ static void pxa_camera_sensor_unbind(struct v4l2_async_notifier *notifier,
 
 	pxa_camera_destroy_formats(pcdev);
 
-	if (pcdev->mclk_clk) {
-		v4l2_clk_unregister(pcdev->mclk_clk);
-		pcdev->mclk_clk = NULL;
-	}
-
 	video_unregister_device(&pcdev->vdev);
 	pcdev->sensor = NULL;
 
@@ -2286,11 +2190,11 @@ static int pxa_camera_resume(struct device *dev)
 }
 
 static int pxa_camera_pdata_from_dt(struct device *dev,
-				    struct pxa_camera_dev *pcdev,
-				    struct v4l2_async_subdev *asd)
+				    struct pxa_camera_dev *pcdev)
 {
 	u32 mclk_rate;
-	struct device_node *remote, *np = dev->of_node;
+	struct v4l2_async_subdev *asd;
+	struct device_node *np = dev->of_node;
 	struct v4l2_fwnode_endpoint ep = { .bus_type = 0 };
 	int err = of_property_read_u32(np, "clock-frequency",
 				       &mclk_rate);
@@ -2342,13 +2246,12 @@ static int pxa_camera_pdata_from_dt(struct device *dev,
 	if (ep.bus.parallel.flags & V4L2_MBUS_PCLK_SAMPLE_FALLING)
 		pcdev->platform_flags |= PXA_CAMERA_PCLK_EN;
 
-	asd->match_type = V4L2_ASYNC_MATCH_FWNODE;
-	remote = of_graph_get_remote_port_parent(np);
-	if (remote)
-		asd->match.fwnode = of_fwnode_handle(remote);
-	else
-		dev_notice(dev, "no remote for %pOF\n", np);
-
+	asd = v4l2_async_notifier_add_fwnode_remote_subdev(
+				&pcdev->notifier,
+				of_fwnode_handle(np),
+				struct v4l2_async_subdev);
+	if (IS_ERR(asd))
+		err = PTR_ERR(asd);
 out:
 	of_node_put(np);
 
@@ -2365,7 +2268,6 @@ static int pxa_camera_probe(struct platform_device *pdev)
 		.src_maxburst = 8,
 		.direction = DMA_DEV_TO_MEM,
 	};
-	char clk_name[V4L2_CLK_NAME_SIZE];
 	int irq;
 	int err = 0, i;
 
@@ -2384,18 +2286,23 @@ static int pxa_camera_probe(struct platform_device *pdev)
 	if (IS_ERR(pcdev->clk))
 		return PTR_ERR(pcdev->clk);
 
+	v4l2_async_notifier_init(&pcdev->notifier);
 	pcdev->res = res;
-
 	pcdev->pdata = pdev->dev.platform_data;
 	if (pcdev->pdata) {
+		struct v4l2_async_subdev *asd;
+
 		pcdev->platform_flags = pcdev->pdata->flags;
 		pcdev->mclk = pcdev->pdata->mclk_10khz * 10000;
-		pcdev->asd.match_type = V4L2_ASYNC_MATCH_I2C;
-		pcdev->asd.match.i2c.adapter_id =
-			pcdev->pdata->sensor_i2c_adapter_id;
-		pcdev->asd.match.i2c.address = pcdev->pdata->sensor_i2c_address;
+		asd = v4l2_async_notifier_add_i2c_subdev(
+				&pcdev->notifier,
+				pcdev->pdata->sensor_i2c_adapter_id,
+				pcdev->pdata->sensor_i2c_address,
+				struct v4l2_async_subdev);
+		if (IS_ERR(asd))
+			err = PTR_ERR(asd);
 	} else if (pdev->dev.of_node) {
-		err = pxa_camera_pdata_from_dt(&pdev->dev, pcdev, &pcdev->asd);
+		err = pxa_camera_pdata_from_dt(&pdev->dev, pcdev);
 	} else {
 		return -ENODEV;
 	}
@@ -2478,52 +2385,27 @@ static int pxa_camera_probe(struct platform_device *pdev)
 		goto exit_free_dma;
 	}
 
-	tasklet_init(&pcdev->task_eof, pxa_camera_eof, (unsigned long)pcdev);
+	tasklet_setup(&pcdev->task_eof, pxa_camera_eof);
 
 	pxa_camera_activate(pcdev);
 
-	dev_set_drvdata(&pdev->dev, pcdev);
+	platform_set_drvdata(pdev, pcdev);
 	err = v4l2_device_register(&pdev->dev, &pcdev->v4l2_dev);
 	if (err)
 		goto exit_deactivate;
-
-	v4l2_async_notifier_init(&pcdev->notifier);
-
-	err = v4l2_async_notifier_add_subdev(&pcdev->notifier, &pcdev->asd);
-	if (err) {
-		fwnode_handle_put(pcdev->asd.match.fwnode);
-		goto exit_free_v4l2dev;
-	}
-
-	pcdev->notifier.ops = &pxa_camera_sensor_ops;
-
-	if (!of_have_populated_dt())
-		pcdev->asd.match_type = V4L2_ASYNC_MATCH_I2C;
 
 	err = pxa_camera_init_videobuf2(pcdev);
 	if (err)
 		goto exit_notifier_cleanup;
 
-	v4l2_clk_name_i2c(clk_name, sizeof(clk_name),
-			  pcdev->asd.match.i2c.adapter_id,
-			  pcdev->asd.match.i2c.address);
-
-	pcdev->mclk_clk = v4l2_clk_register(&pxa_camera_mclk_ops, clk_name, NULL);
-	if (IS_ERR(pcdev->mclk_clk)) {
-		err = PTR_ERR(pcdev->mclk_clk);
-		goto exit_notifier_cleanup;
-	}
-
+	pcdev->notifier.ops = &pxa_camera_sensor_ops;
 	err = v4l2_async_notifier_register(&pcdev->v4l2_dev, &pcdev->notifier);
 	if (err)
-		goto exit_free_clk;
+		goto exit_notifier_cleanup;
 
 	return 0;
-exit_free_clk:
-	v4l2_clk_unregister(pcdev->mclk_clk);
 exit_notifier_cleanup:
 	v4l2_async_notifier_cleanup(&pcdev->notifier);
-exit_free_v4l2dev:
 	v4l2_device_unregister(&pcdev->v4l2_dev);
 exit_deactivate:
 	pxa_camera_deactivate(pcdev);
@@ -2539,7 +2421,7 @@ exit_free_dma_y:
 
 static int pxa_camera_remove(struct platform_device *pdev)
 {
-	struct pxa_camera_dev *pcdev = dev_get_drvdata(&pdev->dev);
+	struct pxa_camera_dev *pcdev = platform_get_drvdata(pdev);
 
 	pxa_camera_deactivate(pcdev);
 	tasklet_kill(&pcdev->task_eof);
@@ -2549,11 +2431,6 @@ static int pxa_camera_remove(struct platform_device *pdev)
 
 	v4l2_async_notifier_unregister(&pcdev->notifier);
 	v4l2_async_notifier_cleanup(&pcdev->notifier);
-
-	if (pcdev->mclk_clk) {
-		v4l2_clk_unregister(pcdev->mclk_clk);
-		pcdev->mclk_clk = NULL;
-	}
 
 	v4l2_device_unregister(&pcdev->v4l2_dev);
 

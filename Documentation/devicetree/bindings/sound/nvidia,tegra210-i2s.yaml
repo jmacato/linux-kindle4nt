@@ -67,13 +67,29 @@ properties:
 
   sound-name-prefix:
     pattern: "^I2S[1-9]$"
-    allOf:
-      - $ref: /schemas/types.yaml#/definitions/string
+    $ref: /schemas/types.yaml#/definitions/string
     description:
       Used as prefix for sink/source names of the component. Must be a
       unique string among multiple instances of the same component.
       The name can be "I2S1" or "I2S2" ... "I2Sx", where x depends
       on the maximum available instances on a Tegra SoC.
+
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+    properties:
+      port@0:
+        $ref: audio-graph-port.yaml#
+        unevaluatedProperties: false
+        description: |
+          I2S ACIF (Audio Client Interface) port connected to the
+          corresponding AHUB (Audio Hub) ACIF port.
+
+      port@1:
+        $ref: audio-graph-port.yaml#
+        unevaluatedProperties: false
+        description: |
+          I2S DAP (Digital Audio Port) interface which can be connected
+          to external audio codec for playback or capture.
 
 required:
   - compatible
@@ -82,6 +98,8 @@ required:
   - clock-names
   - assigned-clocks
   - assigned-clock-parents
+
+additionalProperties: false
 
 examples:
   - |

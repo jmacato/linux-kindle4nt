@@ -96,6 +96,8 @@ enum hinic_port_cmd {
 
 	HINIC_PORT_CMD_RSS_TEMP_MGR	= 49,
 
+	HINIC_PORT_CMD_RD_LINE_TBL	= 57,
+
 	HINIC_PORT_CMD_RSS_CFG		= 66,
 
 	HINIC_PORT_CMD_FWCTXT_INIT      = 69,
@@ -503,8 +505,6 @@ enum hinic_fault_type {
 	FAULT_TYPE_PHY_FAULT,
 	FAULT_TYPE_MAX,
 };
-
-#define FAULT_SHOW_STR_LEN 16
 
 enum hinic_fault_err_level {
 	FAULT_LEVEL_FATAL,

@@ -50,13 +50,11 @@ config XEN_BALLOON_MEMORY_HOTPLUG
 
 	  SUBSYSTEM=="memory", ACTION=="add", RUN+="/bin/sh -c '[ -f /sys$devpath/state ] && echo online > /sys$devpath/state'"
 
-config XEN_BALLOON_MEMORY_HOTPLUG_LIMIT
+config XEN_MEMORY_HOTPLUG_LIMIT
 	int "Hotplugged memory limit (in GiB) for a PV guest"
-	default 512 if X86_64
-	default 4 if X86_32
-	range 0 64 if X86_32
+	default 512
 	depends on XEN_HAVE_PVMMU
-	depends on XEN_BALLOON_MEMORY_HOTPLUG
+	depends on MEMORY_HOTPLUG
 	help
 	  Maxmium amount of memory (in GiB) that a PV guest can be
 	  expanded to when using memory hotplug.
@@ -240,37 +238,6 @@ config XEN_PRIVCMD
 	depends on XEN
 	default m
 
-config XEN_STUB
-	bool "Xen stub drivers"
-	depends on XEN && X86_64 && BROKEN
-	help
-	  Allow kernel to install stub drivers, to reserve space for Xen drivers,
-	  i.e. memory hotplug and cpu hotplug, and to block native drivers loaded,
-	  so that real Xen drivers can be modular.
-
-	  To enable Xen features like cpu and memory hotplug, select Y here.
-
-config XEN_ACPI_HOTPLUG_MEMORY
-	tristate "Xen ACPI memory hotplug"
-	depends on XEN_DOM0 && XEN_STUB && ACPI
-	help
-	  This is Xen ACPI memory hotplug.
-
-	  Currently Xen only support ACPI memory hot-add. If you want
-	  to hot-add memory at runtime (the hot-added memory cannot be
-	  removed until machine stop), select Y/M here, otherwise select N.
-
-config XEN_ACPI_HOTPLUG_CPU
-	tristate "Xen ACPI cpu hotplug"
-	depends on XEN_DOM0 && XEN_STUB && ACPI
-	select ACPI_CONTAINER
-	help
-	  Xen ACPI cpu enumerating and hotplugging
-
-	  For hotplugging, currently Xen only support ACPI cpu hotadd.
-	  If you want to hotadd cpu at runtime (the hotadded cpu cannot
-	  be removed until machine stop), select Y/M here.
-
 config XEN_ACPI_PROCESSOR
 	tristate "Xen ACPI processor"
 	depends on XEN && XEN_DOM0 && X86 && ACPI_PROCESSOR && CPU_FREQ
@@ -326,5 +293,15 @@ config XEN_HAVE_VPMU
 
 config XEN_FRONT_PGDIR_SHBUF
 	tristate
+
+config XEN_UNPOPULATED_ALLOC
+	bool "Use unpopulated memory ranges for guest mappings"
+	depends on X86 && ZONE_DEVICE
+	default XEN_BACKEND || XEN_GNTDEV || XEN_DOM0
+	help
+	  Use unpopulated memory ranges in order to create mappings for guest
+	  memory regions, including grant maps and foreign pages. This avoids
+	  having to balloon out RAM regions in order to obtain physical memory
+	  space to create such mappings.
 
 endmenu

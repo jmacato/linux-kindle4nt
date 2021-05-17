@@ -135,7 +135,8 @@ int gbaudio_dapm_free_controls(struct snd_soc_dapm_context *dapm,
 		if (!w) {
 			dev_err(dapm->dev, "%s: widget not found\n",
 				widget->name);
-			return -EINVAL;
+			widget++;
+			continue;
 		}
 		widget++;
 #ifdef CONFIG_DEBUG_FS
@@ -165,7 +166,7 @@ static int gbaudio_remove_controls(struct snd_card *card, struct device *dev,
 			snprintf(id.name, sizeof(id.name), "%s %s", prefix,
 				 control->name);
 		else
-			strlcpy(id.name, control->name, sizeof(id.name));
+			strscpy(id.name, control->name, sizeof(id.name));
 		id.numid = 0;
 		id.iface = control->iface;
 		id.device = control->device;
@@ -173,8 +174,7 @@ static int gbaudio_remove_controls(struct snd_card *card, struct device *dev,
 		id.index = control->index;
 		kctl = snd_ctl_find_id(card, &id);
 		if (!kctl) {
-			dev_err(dev, "%d: Failed to find %s\n", err,
-				control->name);
+			dev_err(dev, "Failed to find %s\n", control->name);
 			continue;
 		}
 		err = snd_ctl_remove(card, kctl);

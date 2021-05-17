@@ -11,8 +11,7 @@
 #include "debug.h"
 #include "expr.h"
 #include "stat.h"
-#include <perf/cpumap.h>
-#include <perf/evlist.h>
+#include "pmu.h"
 
 static struct pmu_event pme_test[] = {
 {
@@ -70,6 +69,13 @@ static struct pmu_event pme_test[] = {
 {
 	.metric_expr	= "1/m3",
 	.metric_name	= "M3",
+},
+{
+	.metric_expr	= "64 * l1d.replacement / 1000000000 / duration_time",
+	.metric_name	= "L1D_Cache_Fill_BW",
+},
+{
+	.name	= NULL,
 }
 };
 
@@ -93,7 +99,7 @@ static u64 find_value(const char *name, struct value *values)
 		if (!strcmp(name, v->event))
 			return v->val;
 		v++;
-	};
+	}
 	return 0;
 }
 
@@ -106,6 +112,8 @@ static void load_runtime_stat(struct runtime_stat *st, struct evlist *evlist,
 	evlist__for_each_entry(evlist, evsel) {
 		count = find_value(evsel->name, vals);
 		perf_stat__update_shadow_stats(evsel, count, 0, st);
+		if (!strcmp(evsel->name, "duration_time"))
+			update_stats(&walltime_nsecs_stats, count);
 	}
 }
 
@@ -150,23 +158,26 @@ static int __compute_metric(const char *name, struct value *vals,
 		return -ENOMEM;
 
 	cpus = perf_cpu_map__new("0");
-	if (!cpus)
+	if (!cpus) {
+		evlist__delete(evlist);
 		return -ENOMEM;
+	}
 
 	perf_evlist__set_maps(&evlist->core, cpus, NULL);
+	runtime_stat__init(&st);
 
 	/* Parse the metric into metric_events list. */
 	err = metricgroup__parse_groups_test(evlist, &map, name,
 					     false, false,
 					     &metric_events);
 	if (err)
-		return err;
+		goto out;
 
-	if (perf_evlist__alloc_stats(evlist, false))
-		return -1;
+	err = evlist__alloc_stats(evlist, false);
+	if (err)
+		goto out;
 
 	/* Load the runtime stats with given numbers for events. */
-	runtime_stat__init(&st);
 	load_runtime_stat(&st, evlist, vals);
 
 	/* And execute the metric */
@@ -175,13 +186,14 @@ static int __compute_metric(const char *name, struct value *vals,
 	if (name2 && ratio2)
 		*ratio2 = compute_single(&metric_events, evlist, &st, name2);
 
-	/* ... clenup. */
+out:
+	/* ... cleanup. */
 	metricgroup__rblist_exit(&metric_events);
 	runtime_stat__exit(&st);
-	perf_evlist__free_stats(evlist);
+	evlist__free_stats(evlist);
 	perf_cpu_map__put(cpus);
 	evlist__delete(evlist);
-	return 0;
+	return err;
 }
 
 static int compute_metric(const char *name, struct value *vals, double *ratio)
@@ -316,6 +328,23 @@ static int test_recursion_fail(void)
 	return 0;
 }
 
+static int test_memory_bandwidth(void)
+{
+	double ratio;
+	struct value vals[] = {
+		{ .event = "l1d.replacement", .val = 4000000 },
+		{ .event = "duration_time",  .val = 200000000 },
+		{ .event = NULL, },
+	};
+
+	TEST_ASSERT_VAL("failed to compute metric",
+			compute_metric("L1D_Cache_Fill_BW", vals, &ratio) == 0);
+	TEST_ASSERT_VAL("L1D_Cache_Fill_BW, wrong ratio",
+			1.28 == ratio);
+
+	return 0;
+}
+
 static int test_metric_group(void)
 {
 	double ratio1, ratio2;
@@ -344,9 +373,13 @@ int test__parse_metric(struct test *test __maybe_unused, int subtest __maybe_unu
 {
 	TEST_ASSERT_VAL("IPC failed", test_ipc() == 0);
 	TEST_ASSERT_VAL("frontend failed", test_frontend() == 0);
-	TEST_ASSERT_VAL("cache_miss_cycles failed", test_cache_miss_cycles() == 0);
 	TEST_ASSERT_VAL("DCache_L2 failed", test_dcache_l2() == 0);
 	TEST_ASSERT_VAL("recursion fail failed", test_recursion_fail() == 0);
-	TEST_ASSERT_VAL("test metric group", test_metric_group() == 0);
+	TEST_ASSERT_VAL("Memory bandwidth", test_memory_bandwidth() == 0);
+
+	if (!perf_pmu__has_hybrid()) {
+		TEST_ASSERT_VAL("cache_miss_cycles failed", test_cache_miss_cycles() == 0);
+		TEST_ASSERT_VAL("test metric group", test_metric_group() == 0);
+	}
 	return 0;
 }

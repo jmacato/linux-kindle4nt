@@ -786,7 +786,7 @@ static int imx214_s_stream(struct v4l2_subdev *subdev, int enable)
 		if (ret < 0)
 			goto err_rpm_put;
 	} else {
-		ret = imx214_start_streaming(imx214);
+		ret = imx214_stop_streaming(imx214);
 		if (ret < 0)
 			goto err_rpm_put;
 		pm_runtime_put(imx214->dev);
@@ -1061,7 +1061,7 @@ static int imx214_probe(struct i2c_client *client)
 
 	imx214_entity_init_cfg(&imx214->sd, NULL);
 
-	ret = v4l2_async_register_subdev_sensor_common(&imx214->sd);
+	ret = v4l2_async_register_subdev_sensor(&imx214->sd);
 	if (ret < 0) {
 		dev_err(dev, "could not register v4l2 device\n");
 		goto free_entity;

@@ -156,7 +156,6 @@ against.  Possible keywords are:::
   ``line-range`` cannot contain space, e.g.
   "1-30" is valid range but "1 - 30" is not.
 
-  ``module=foo`` combined keyword=value form is interchangably accepted
 
 The meanings of each keyword are:
 
@@ -348,7 +347,7 @@ Examples
 				<debugfs>/dynamic_debug/control
 
   // enable messages in files of which the paths include string "usb"
-  nullarbor:~ # echo -n '*usb* +p' > <debugfs>/dynamic_debug/control
+  nullarbor:~ # echo -n 'file *usb* +p' > <debugfs>/dynamic_debug/control
 
   // enable all messages
   nullarbor:~ # echo -n '+p' > <debugfs>/dynamic_debug/control

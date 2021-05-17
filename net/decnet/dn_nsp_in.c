@@ -483,7 +483,7 @@ static void dn_nsp_disc_conf(struct sock *sk, struct sk_buff *skb)
 		break;
 	case DN_RUN:
 		sk->sk_shutdown |= SHUTDOWN_MASK;
-		/* fall through */
+		fallthrough;
 	case DN_CC:
 		scp->state = DN_CN;
 	}
@@ -520,7 +520,7 @@ static void dn_nsp_linkservice(struct sock *sk, struct sk_buff *skb)
 	fcval = *ptr;
 
 	/*
-	 * Here we ignore erronous packets which should really
+	 * Here we ignore erroneous packets which should really
 	 * should cause a connection abort. It is not critical
 	 * for now though.
 	 */
