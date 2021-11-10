@@ -8,22 +8,22 @@ on:
      # effective frequency you will get
     - cron:  '0 * * * *'
 jobs:
-  merge:
+  merge-upstream-to-all-branches:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.4.0
       - name: Merge upstream
         run: |
-          git config --global user.name 'bot'
-          git config --global user.email 'bot@noreply.com'
-          
-          # "git checkout master" is unnecessary, already here by default
-          git pull --unshallow  # this option is very important, you would get
-                                # complains about unrelated histories without it.
-                                # (but actions/checkout@v2 can also be instructed
-                                # to fetch all git depth right from the start)
-          git remote add upstream https://github.com/torvalds/linux
-          git fetch --all
-          git checkout master
-          git pull --rebase upstream master
-          git push -f origin master
+          for BRANCH in `git branch --list|sed 's/\*//g'`;
+          do
+            git fetch --all
+            git checkout $BRANCH
+            git pull --unshallow  # this option is very important, you would get
+                                  # complains about unrelated histories without it.
+                                  # (but actions/checkout@v2 can also be instructed
+                                  # to fetch all git depth right from the start)
+            git remote add upstream https://github.com/torvalds/linux
+            git fetch --all
+            git pull --rebase upstream master
+            git push -f origin $BRANCH
+          done
