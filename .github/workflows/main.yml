@@ -16,14 +16,17 @@ jobs:
         run: |
           for BRANCH in `git branch --list|sed 's/\*//g'`;
           do
-            git fetch --all
+            git remote remove upstream
             git checkout $BRANCH
+            git fetch --all
+          
+
             git pull --unshallow  # this option is very important, you would get
                                   # complains about unrelated histories without it.
                                   # (but actions/checkout@v2 can also be instructed
                                   # to fetch all git depth right from the start)
             git remote add upstream https://github.com/torvalds/linux
-            git fetch --all
+            git fetch upstream master
             git pull --rebase upstream master
             git push -f origin $BRANCH
           done
