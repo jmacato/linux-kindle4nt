@@ -121,7 +121,6 @@ static int nvme_map_user_request(struct request *req, u64 ubuffer,
 	struct block_device *bdev = ns ? ns->disk->part0 : NULL;
 	bool supports_metadata = bdev && blk_get_integrity(bdev->bd_disk);
 	bool has_metadata = meta_buffer && meta_len;
-	struct bio *bio = NULL;
 	int ret;
 
 	if (has_metadata && !supports_metadata)
@@ -145,8 +144,8 @@ static int nvme_map_user_request(struct request *req, u64 ubuffer,
 	return ret;
 
 out_unmap:
-	if (bio)
-		blk_rq_unmap_user(bio);
+	if (req->bio)
+		blk_rq_unmap_user(req->bio);
 	return ret;
 }
 
