@@ -4187,8 +4187,8 @@ F:	include/uapi/linux/sonet.h
 F:	net/atm/
 
 ATMEL MACB ETHERNET DRIVER
-M:	Nicolas Ferre <nicolas.ferre@microchip.com>
-M:	Claudiu Beznea <claudiu.beznea@tuxon.dev>
+M:	Théo Lebrun <theo.lebrun@bootlin.com>
+R:	Conor Dooley <conor.dooley@microchip.com>
 S:	Maintained
 F:	drivers/net/ethernet/cadence/
 
