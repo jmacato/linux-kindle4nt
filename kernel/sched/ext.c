@@ -5585,10 +5585,12 @@ static void refresh_watchdog(void)
 
 static s32 scx_link_sched(struct scx_sched *sch)
 {
+	const char *err_msg;
+	s32 ret = 0;
+
 	scoped_guard(raw_spinlock_irq, &scx_sched_lock) {
 #ifdef CONFIG_EXT_SUB_SCHED
 		struct scx_sched *parent = scx_parent(sch);
-		s32 ret;
 
 		if (parent) {
 			/*
@@ -5598,15 +5600,16 @@ static s32 scx_link_sched(struct scx_sched *sch)
 			 * parent can shoot us down.
 			 */
 			if (atomic_read(&parent->exit_kind) != SCX_EXIT_NONE) {
-				scx_error(sch, "parent disabled");
-				return -ENOENT;
+				err_msg = "parent disabled";
+				ret = -ENOENT;
+				break;
 			}
 
 			ret = rhashtable_lookup_insert_fast(&scx_sched_hash,
 					&sch->hash_node, scx_sched_hash_params);
 			if (ret) {
-				scx_error(sch, "failed to insert into scx_sched_hash (%d)", ret);
-				return ret;
+				err_msg = "failed to insert into scx_sched_hash";
+				break;
 			}
 
 			list_add_tail(&sch->sibling, &parent->children);
@@ -5614,6 +5617,15 @@ static s32 scx_link_sched(struct scx_sched *sch)
 #endif	/* CONFIG_EXT_SUB_SCHED */
 
 		list_add_tail_rcu(&sch->all, &scx_sched_all);
+	}
+
+	/*
+	 * scx_error() takes scx_sched_lock via scx_claim_exit(), so it must run after
+	 * the guard above is released.
+	 */
+	if (ret) {
+		scx_error(sch, "%s (%d)", err_msg, ret);
+		return ret;
 	}
 
 	refresh_watchdog();
