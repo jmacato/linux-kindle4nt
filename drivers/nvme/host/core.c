@@ -5045,8 +5045,8 @@ void nvme_start_ctrl(struct nvme_ctrl *ctrl)
 		nvme_mpath_update(ctrl);
 	}
 
-	nvme_change_uevent(ctrl, "NVME_EVENT=connected");
 	set_bit(NVME_CTRL_STARTED_ONCE, &ctrl->flags);
+	nvme_change_uevent(ctrl, "NVME_EVENT=connected");
 }
 EXPORT_SYMBOL_GPL(nvme_start_ctrl);
 
