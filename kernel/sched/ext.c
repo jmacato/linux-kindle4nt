@@ -5584,7 +5584,7 @@ static void refresh_watchdog(void)
 
 static s32 scx_link_sched(struct scx_sched *sch)
 {
-	const char *err_msg;
+	const char *err_msg = "";
 	s32 ret = 0;
 
 	scoped_guard(raw_spinlock_irq, &scx_sched_lock) {
@@ -6652,8 +6652,10 @@ static struct scx_sched *scx_alloc_and_add_sched(struct sched_ext_ops *ops,
 #endif	/* CONFIG_EXT_SUB_SCHED */
 	return sch;
 
+#ifdef CONFIG_EXT_SUB_SCHED
 err_free_lb_resched:
 	free_cpumask_var(sch->bypass_lb_resched_cpumask);
+#endif
 err_free_lb_cpumask:
 	free_cpumask_var(sch->bypass_lb_donee_cpumask);
 err_stop_helper:
