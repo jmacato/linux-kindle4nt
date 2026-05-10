@@ -726,6 +726,7 @@ static void scx_set_task_state(struct task_struct *p, u32 state)
 		break;
 	case SCX_TASK_INIT:
 		warn = prev_state != SCX_TASK_NONE;
+		p->scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
 		break;
 	case SCX_TASK_READY:
 		warn = prev_state == SCX_TASK_NONE;
@@ -3585,22 +3586,6 @@ static int __scx_init_task(struct scx_sched *sch, struct task_struct *p, bool fo
 	return 0;
 }
 
-static int scx_init_task(struct scx_sched *sch, struct task_struct *p, bool fork)
-{
-	int ret;
-
-	ret = __scx_init_task(sch, p, fork);
-	if (!ret) {
-		/*
-		 * While @p's rq is not locked. @p is not visible to the rest of
-		 * SCX yet and it's safe to update the flags and state.
-		 */
-		p->scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
-		scx_set_task_state(p, SCX_TASK_INIT);
-	}
-	return ret;
-}
-
 static void __scx_enable_task(struct scx_sched *sch, struct task_struct *p)
 {
 	struct rq *rq = task_rq(p);
@@ -3763,10 +3748,11 @@ int scx_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 #else
 		struct scx_sched *sch = scx_root;
 #endif
-		ret = scx_init_task(sch, p, true);
-		if (!ret)
-			scx_set_task_sched(p, sch);
-		return ret;
+		ret = __scx_init_task(sch, p, true);
+		if (unlikely(ret))
+			return ret;
+		scx_set_task_state(p, SCX_TASK_INIT);
+		scx_set_task_sched(p, sch);
 	}
 
 	return 0;
@@ -6897,8 +6883,8 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 
 		scx_task_iter_unlock(&sti);
 
-		ret = scx_init_task(sch, p, false);
-		if (ret) {
+		ret = __scx_init_task(sch, p, false);
+		if (unlikely(ret)) {
 			put_task_struct(p);
 			scx_task_iter_stop(&sti);
 			scx_error(sch, "ops.init_task() failed (%d) for %s[%d]",
@@ -6906,6 +6892,7 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 			goto err_disable_unlock_all;
 		}
 
+		scx_set_task_state(p, SCX_TASK_INIT);
 		scx_set_task_sched(p, sch);
 		scx_set_task_state(p, SCX_TASK_READY);
 
