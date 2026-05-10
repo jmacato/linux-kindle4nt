@@ -723,16 +723,21 @@ static void scx_set_task_state(struct task_struct *p, u32 state)
 
 	switch (state) {
 	case SCX_TASK_NONE:
+		warn = prev_state == SCX_TASK_DEAD;
 		break;
 	case SCX_TASK_INIT:
 		warn = prev_state != SCX_TASK_NONE;
 		p->scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
 		break;
 	case SCX_TASK_READY:
-		warn = prev_state == SCX_TASK_NONE;
+		warn = !(prev_state == SCX_TASK_INIT ||
+			 prev_state == SCX_TASK_ENABLED);
 		break;
 	case SCX_TASK_ENABLED:
 		warn = prev_state != SCX_TASK_READY;
+		break;
+	case SCX_TASK_DEAD:
+		warn = prev_state != SCX_TASK_NONE;
 		break;
 	default:
 		WARN_ONCE(1, "sched_ext: Invalid task state %d -> %d for %s[%d]",
@@ -972,11 +977,11 @@ static struct task_struct *scx_task_iter_next_locked(struct scx_task_iter *iter)
 		/*
 		 * cgroup_task_dead() removes the dead tasks from cset->tasks
 		 * after sched_ext_dead() and cgroup iteration may see tasks
-		 * which already finished sched_ext_dead(). %SCX_TASK_OFF_TASKS
-		 * is set by sched_ext_dead() under @p's rq lock. Test it to
+		 * which already finished sched_ext_dead(). %SCX_TASK_DEAD is
+		 * set by sched_ext_dead() under @p's rq lock. Test it to
 		 * avoid visiting tasks which are already dead from SCX POV.
 		 */
-		if (p->scx.flags & SCX_TASK_OFF_TASKS) {
+		if (scx_get_task_state(p) == SCX_TASK_DEAD) {
 			__scx_task_iter_rq_unlock(iter);
 			continue;
 		}
@@ -3847,7 +3852,7 @@ void sched_ext_dead(struct task_struct *p)
 	 * @p is off scx_tasks and wholly ours. scx_root_enable()'s READY ->
 	 * ENABLED transitions can't race us. Disable ops for @p.
 	 *
-	 * %SCX_TASK_OFF_TASKS synchronizes against cgroup task iteration - see
+	 * %SCX_TASK_DEAD synchronizes against cgroup task iteration - see
 	 * scx_task_iter_next_locked(). NONE tasks need no marking: cgroup
 	 * iteration is only used from sub-sched paths, which require root
 	 * enabled. Root enable transitions every live task to at least READY.
@@ -3858,7 +3863,7 @@ void sched_ext_dead(struct task_struct *p)
 
 		rq = task_rq_lock(p, &rf);
 		scx_disable_and_exit_task(scx_task_sched(p), p);
-		p->scx.flags |= SCX_TASK_OFF_TASKS;
+		scx_set_task_state(p, SCX_TASK_DEAD);
 		task_rq_unlock(rq, p, &rf);
 	}
 }
