@@ -711,6 +711,41 @@ struct bpf_iter_scx_dsq {
 } __attribute__((aligned(8)));
 
 
+static u32 scx_get_task_state(const struct task_struct *p)
+{
+	return p->scx.flags & SCX_TASK_STATE_MASK;
+}
+
+static void scx_set_task_state(struct task_struct *p, u32 state)
+{
+	u32 prev_state = scx_get_task_state(p);
+	bool warn = false;
+
+	switch (state) {
+	case SCX_TASK_NONE:
+		break;
+	case SCX_TASK_INIT:
+		warn = prev_state != SCX_TASK_NONE;
+		break;
+	case SCX_TASK_READY:
+		warn = prev_state == SCX_TASK_NONE;
+		break;
+	case SCX_TASK_ENABLED:
+		warn = prev_state != SCX_TASK_READY;
+		break;
+	default:
+		WARN_ONCE(1, "sched_ext: Invalid task state %d -> %d for %s[%d]",
+			  prev_state, state, p->comm, p->pid);
+		return;
+	}
+
+	WARN_ONCE(warn, "sched_ext: Invalid task state transition 0x%x -> 0x%x for %s[%d]",
+		  prev_state, state, p->comm, p->pid);
+
+	p->scx.flags &= ~SCX_TASK_STATE_MASK;
+	p->scx.flags |= state;
+}
+
 /*
  * SCX task iterator.
  */
@@ -3499,41 +3534,6 @@ static struct cgroup *tg_cgrp(struct task_group *tg)
 
 #endif	/* CONFIG_EXT_GROUP_SCHED */
 
-static u32 scx_get_task_state(const struct task_struct *p)
-{
-	return p->scx.flags & SCX_TASK_STATE_MASK;
-}
-
-static void scx_set_task_state(struct task_struct *p, u32 state)
-{
-	u32 prev_state = scx_get_task_state(p);
-	bool warn = false;
-
-	switch (state) {
-	case SCX_TASK_NONE:
-		break;
-	case SCX_TASK_INIT:
-		warn = prev_state != SCX_TASK_NONE;
-		break;
-	case SCX_TASK_READY:
-		warn = prev_state == SCX_TASK_NONE;
-		break;
-	case SCX_TASK_ENABLED:
-		warn = prev_state != SCX_TASK_READY;
-		break;
-	default:
-		WARN_ONCE(1, "sched_ext: Invalid task state %d -> %d for %s[%d]",
-			  prev_state, state, p->comm, p->pid);
-		return;
-	}
-
-	WARN_ONCE(warn, "sched_ext: Invalid task state transition 0x%x -> 0x%x for %s[%d]",
-		  prev_state, state, p->comm, p->pid);
-
-	p->scx.flags &= ~SCX_TASK_STATE_MASK;
-	p->scx.flags |= state;
-}
-
 static int __scx_init_task(struct scx_sched *sch, struct task_struct *p, bool fork)
 {
 	int ret;
@@ -5696,7 +5696,7 @@ static void scx_fail_parent(struct scx_sched *sch,
 
 		scoped_guard (sched_change, p, DEQUEUE_SAVE | DEQUEUE_MOVE) {
 			scx_disable_and_exit_task(sch, p);
-			rcu_assign_pointer(p->scx.sched, parent);
+			scx_set_task_sched(p, parent);
 		}
 	}
 	scx_task_iter_stop(&sti);
@@ -5783,7 +5783,7 @@ static void scx_sub_disable(struct scx_sched *sch)
 			 */
 			scx_disable_and_exit_task(sch, p);
 			scx_set_task_state(p, SCX_TASK_INIT);
-			rcu_assign_pointer(p->scx.sched, parent);
+			scx_set_task_sched(p, parent);
 			scx_set_task_state(p, SCX_TASK_READY);
 			scx_enable_task(parent, p);
 		}
@@ -7212,7 +7212,7 @@ static void scx_sub_enable_workfn(struct kthread_work *work)
 			 * $p is now only initialized for @sch and READY, which
 			 * is what we want. Assign it to @sch and enable.
 			 */
-			rcu_assign_pointer(p->scx.sched, sch);
+			scx_set_task_sched(p, sch);
 			scx_enable_task(sch, p);
 
 			p->scx.flags &= ~SCX_TASK_SUB_INIT;
