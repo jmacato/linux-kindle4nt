@@ -3703,6 +3703,15 @@ static void scx_sub_init_cancel_task(struct scx_sched *sch, struct task_struct *
 static void scx_disable_and_exit_task(struct scx_sched *sch,
 				      struct task_struct *p)
 {
+	/*
+	 * %NONE means @p is already detached at the SCX level (e.g. handed
+	 * back to the parent by scx_fail_parent() with no init to undo).
+	 * Skip to avoid clobbering scx_task_sched() and writing %NONE again
+	 * on a state that's already %NONE.
+	 */
+	if (scx_get_task_state(p) == SCX_TASK_NONE)
+		return;
+
 	__scx_disable_and_exit_task(sch, p);
 
 	/*
@@ -3919,6 +3928,16 @@ static void switching_to_scx(struct rq *rq, struct task_struct *p)
 static void switched_from_scx(struct rq *rq, struct task_struct *p)
 {
 	if (task_dead_and_done(p))
+		return;
+
+	/*
+	 * %NONE means SCX is no longer tracking @p at the task level (e.g.
+	 * scx_fail_parent() handed @p back to the parent at NONE pending the
+	 * parent's own teardown). There is nothing to disable; calling
+	 * scx_disable_task() would WARN on the non-%ENABLED state and trigger a
+	 * NONE -> READY validation failure.
+	 */
+	if (scx_get_task_state(p) == SCX_TASK_NONE)
 		return;
 
 	scx_disable_task(scx_task_sched(p), p);
