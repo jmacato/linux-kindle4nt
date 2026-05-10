@@ -725,8 +725,11 @@ static void scx_set_task_state(struct task_struct *p, u32 state)
 	case SCX_TASK_NONE:
 		warn = prev_state == SCX_TASK_DEAD;
 		break;
-	case SCX_TASK_INIT:
+	case SCX_TASK_INIT_BEGIN:
 		warn = prev_state != SCX_TASK_NONE;
+		break;
+	case SCX_TASK_INIT:
+		warn = prev_state != SCX_TASK_INIT_BEGIN;
 		p->scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
 		break;
 	case SCX_TASK_READY:
@@ -737,7 +740,8 @@ static void scx_set_task_state(struct task_struct *p, u32 state)
 		warn = prev_state != SCX_TASK_READY;
 		break;
 	case SCX_TASK_DEAD:
-		warn = prev_state != SCX_TASK_NONE;
+		warn = !(prev_state == SCX_TASK_NONE ||
+			 prev_state == SCX_TASK_INIT_BEGIN);
 		break;
 	default:
 		WARN_ONCE(1, "sched_ext: Invalid task state %d -> %d for %s[%d]",
@@ -3753,9 +3757,12 @@ int scx_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 #else
 		struct scx_sched *sch = scx_root;
 #endif
+		scx_set_task_state(p, SCX_TASK_INIT_BEGIN);
 		ret = __scx_init_task(sch, p, true);
-		if (unlikely(ret))
+		if (unlikely(ret)) {
+			scx_set_task_state(p, SCX_TASK_NONE);
 			return ret;
+		}
 		scx_set_task_state(p, SCX_TASK_INIT);
 		scx_set_task_sched(p, sch);
 	}
@@ -3856,13 +3863,18 @@ void sched_ext_dead(struct task_struct *p)
 	 * scx_task_iter_next_locked(). NONE tasks need no marking: cgroup
 	 * iteration is only used from sub-sched paths, which require root
 	 * enabled. Root enable transitions every live task to at least READY.
+	 *
+	 * %INIT_BEGIN means ops.init_task() is running for @p. Don't call
+	 * into ops; transition to %DEAD so the post-init recheck unwinds
+	 * via scx_sub_init_cancel_task().
 	 */
 	if (scx_get_task_state(p) != SCX_TASK_NONE) {
 		struct rq_flags rf;
 		struct rq *rq;
 
 		rq = task_rq_lock(p, &rf);
-		scx_disable_and_exit_task(scx_task_sched(p), p);
+		if (scx_get_task_state(p) != SCX_TASK_INIT_BEGIN)
+			scx_disable_and_exit_task(scx_task_sched(p), p);
 		scx_set_task_state(p, SCX_TASK_DEAD);
 		task_rq_unlock(rq, p, &rf);
 	}
@@ -5773,6 +5785,7 @@ static void scx_sub_disable(struct scx_sched *sch)
 			 * $p having already been initialized, and then enable.
 			 */
 			scx_disable_and_exit_task(sch, p);
+			scx_set_task_state(p, SCX_TASK_INIT_BEGIN);
 			scx_set_task_state(p, SCX_TASK_INIT);
 			scx_set_task_sched(p, parent);
 			scx_set_task_state(p, SCX_TASK_READY);
@@ -6878,6 +6891,9 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 
 	scx_task_iter_start(&sti, NULL);
 	while ((p = scx_task_iter_next_locked(&sti))) {
+		struct rq_flags rf;
+		struct rq *rq;
+
 		/*
 		 * @p may already be dead, have lost all its usages counts and
 		 * be waiting for RCU grace period before being freed. @p can't
@@ -6886,10 +6902,26 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 		if (!tryget_task_struct(p))
 			continue;
 
+		/*
+		 * Set %INIT_BEGIN under the iter's rq lock so that a concurrent
+		 * sched_ext_dead() does not call ops.exit_task() on @p while
+		 * ops.init_task() is running. If sched_ext_dead() runs before
+		 * this store, it has already removed @p from scx_tasks and the
+		 * iter won't visit @p; if it runs after, it observes
+		 * %INIT_BEGIN and transitions to %DEAD without calling ops,
+		 * leaving the post-init recheck below to unwind.
+		 */
+		scx_set_task_state(p, SCX_TASK_INIT_BEGIN);
 		scx_task_iter_unlock(&sti);
 
 		ret = __scx_init_task(sch, p, false);
+
+		rq = task_rq_lock(p, &rf);
+
 		if (unlikely(ret)) {
+			if (scx_get_task_state(p) != SCX_TASK_DEAD)
+				scx_set_task_state(p, SCX_TASK_NONE);
+			task_rq_unlock(rq, p, &rf);
 			put_task_struct(p);
 			scx_task_iter_stop(&sti);
 			scx_error(sch, "ops.init_task() failed (%d) for %s[%d]",
@@ -6897,10 +6929,20 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 			goto err_disable_unlock_all;
 		}
 
-		scx_set_task_state(p, SCX_TASK_INIT);
-		scx_set_task_sched(p, sch);
-		scx_set_task_state(p, SCX_TASK_READY);
+		if (scx_get_task_state(p) == SCX_TASK_DEAD) {
+			/*
+			 * sched_ext_dead() observed %INIT_BEGIN and set %DEAD.
+			 * ops.exit_task() is owed to the sched __scx_init_task()
+			 * ran against; call it now.
+			 */
+			scx_sub_init_cancel_task(sch, p);
+		} else {
+			scx_set_task_state(p, SCX_TASK_INIT);
+			scx_set_task_sched(p, sch);
+			scx_set_task_state(p, SCX_TASK_READY);
+		}
 
+		task_rq_unlock(rq, p, &rf);
 		put_task_struct(p);
 	}
 	scx_task_iter_stop(&sti);
