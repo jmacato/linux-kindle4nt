@@ -5777,6 +5777,21 @@ static void scx_sub_disable(struct scx_sched *sch)
 		}
 
 		rq = task_rq_lock(p, &rf);
+
+		if (scx_get_task_state(p) == SCX_TASK_DEAD) {
+			/*
+			 * sched_ext_dead() raced us between __scx_init_task()
+			 * and this rq lock and ran exit_task() on @sch (the
+			 * sched @p was on at that point), not on $parent.
+			 * $parent's just-completed init is owed an exit_task()
+			 * and we issue it here.
+			 */
+			scx_sub_init_cancel_task(parent, p);
+			task_rq_unlock(rq, p, &rf);
+			put_task_struct(p);
+			continue;
+		}
+
 		scoped_guard (sched_change, p, DEQUEUE_SAVE | DEQUEUE_MOVE) {
 			/*
 			 * $p is initialized for $parent and still attached to
@@ -5791,8 +5806,8 @@ static void scx_sub_disable(struct scx_sched *sch)
 			scx_set_task_state(p, SCX_TASK_READY);
 			scx_enable_task(parent, p);
 		}
-		task_rq_unlock(rq, p, &rf);
 
+		task_rq_unlock(rq, p, &rf);
 		put_task_struct(p);
 	}
 	scx_task_iter_stop(&sti);
@@ -7212,6 +7227,21 @@ static void scx_sub_enable_workfn(struct kthread_work *work)
 			goto abort;
 
 		rq = task_rq_lock(p, &rf);
+
+		if (scx_get_task_state(p) == SCX_TASK_DEAD) {
+			/*
+			 * sched_ext_dead() raced us between __scx_init_task()
+			 * and this rq lock and ran exit_task() on $parent (the
+			 * sched @p was on at that point), not on @sch. @sch's
+			 * just-completed init is owed an exit_task() and we
+			 * issue it here.
+			 */
+			scx_sub_init_cancel_task(sch, p);
+			task_rq_unlock(rq, p, &rf);
+			put_task_struct(p);
+			continue;
+		}
+
 		p->scx.flags |= SCX_TASK_SUB_INIT;
 		task_rq_unlock(rq, p, &rf);
 
