@@ -6803,6 +6803,19 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 		goto err_unlock;
 	}
 
+	/*
+	 * @ops->priv binds @ops to its scx_sched instance. It is set here by
+	 * scx_alloc_and_add_sched() and cleared at the tail of bpf_scx_unreg(),
+	 * which runs after scx_root_disable() has dropped scx_enable_mutex. If
+	 * it's still non-NULL here, a previous attachment on @ops has not
+	 * finished tearing down; proceeding would let the in-flight unreg's
+	 * RCU_INIT_POINTER(NULL) clobber the @ops->priv we are about to assign.
+	 */
+	if (rcu_access_pointer(ops->priv)) {
+		ret = -EBUSY;
+		goto err_unlock;
+	}
+
 	ret = alloc_kick_syncs();
 	if (ret)
 		goto err_unlock;
@@ -7117,6 +7130,12 @@ static void scx_sub_enable_workfn(struct kthread_work *work)
 
 	if (!scx_enabled()) {
 		ret = -ENODEV;
+		goto out_unlock;
+	}
+
+	/* See scx_root_enable_workfn() for the @ops->priv check. */
+	if (rcu_access_pointer(ops->priv)) {
+		ret = -EBUSY;
 		goto out_unlock;
 	}
 
