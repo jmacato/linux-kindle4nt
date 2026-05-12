@@ -3703,22 +3703,14 @@ static void scx_sub_init_cancel_task(struct scx_sched *sch, struct task_struct *
 static void scx_disable_and_exit_task(struct scx_sched *sch,
 				      struct task_struct *p)
 {
-	/*
-	 * %NONE means @p is already detached at the SCX level (e.g. handed
-	 * back to the parent by scx_fail_parent() with no init to undo).
-	 * Skip to avoid clobbering scx_task_sched() and writing %NONE again
-	 * on a state that's already %NONE.
-	 */
-	if (scx_get_task_state(p) == SCX_TASK_NONE)
-		return;
-
 	__scx_disable_and_exit_task(sch, p);
 
 	/*
 	 * If set, @p exited between __scx_init_task() and scx_enable_task() in
 	 * scx_sub_enable() and is initialized for both the associated sched and
 	 * its parent. Exit for the child too - scx_enable_task() never ran for
-	 * it, so undo only init_task.
+	 * it, so undo only init_task. The flag is only set on the sub-enable
+	 * path, so it's always clear when @p arrives here in %SCX_TASK_NONE.
 	 */
 	if (p->scx.flags & SCX_TASK_SUB_INIT) {
 		if (!WARN_ON_ONCE(!scx_enabling_sub_sched))
