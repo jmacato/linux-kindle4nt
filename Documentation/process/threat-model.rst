@@ -62,7 +62,8 @@ on common processors featuring privilege levels and memory management units:
 
 * **Capability-based protection**:
 
-  * users not having the ``CAP_SYS_ADMIN`` capability may not alter the
+  * users not having elevated capabilities (including but not limited to
+    CAP_SYS_ADMIN) may not alter the
     kernel's configuration, memory nor state, change other users' view of the
     file system layout, grant any user capabilities they do not have, nor
     affect the system's availability (shutdown, reboot, panic, hang, or making
