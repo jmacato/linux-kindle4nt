@@ -1,5 +1,3 @@
-.. _threatmodel:
-
 The Linux Kernel threat model
 =============================
 

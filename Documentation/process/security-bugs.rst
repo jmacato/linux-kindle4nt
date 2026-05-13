@@ -191,12 +191,13 @@ handle:
     Please **always convert your report to plain text** without any formatting
     decorations before sending it.
 
-  * **Impact Evaluation**: Many AI-generated reports lack an understanding of
-    the kernel's threat model and go to great lengths inventing theoretical
-    consequences. This adds noise and complicates triage. Please stick to
-    verifiable facts (e.g., "this bug permits any user to gain CAP_NET_ADMIN")
-    without enumerating speculative implications. Have your tool read this
-    documentation as part of the evaluation process.
+  * **Impact Evaluation**: Many AI-generated reports lack an understanding
+    of the kernel's threat model (see Documentation/process/threat-model.rst)
+    and go to great lengths inventing theoretical consequences. This adds
+    noise and complicates triage. Please stick to verifiable facts (e.g.,
+    "this bug permits any user to gain CAP_NET_ADMIN") without enumerating
+    speculative implications. Have your tool read this documentation as
+    part of the evaluation process.
 
   * **Reproducer**: AI-based tools are often capable of generating reproducers.
     Please always ensure your tool provides one and **test it thoroughly**. If
